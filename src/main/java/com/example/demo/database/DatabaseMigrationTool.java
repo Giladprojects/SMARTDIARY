@@ -33,7 +33,6 @@ public final class DatabaseMigrationTool {
         ensureSchemaMigrationsTable(connection);
         seedUsers(connection);
         markSchemaVersion(connection, "2026-03-10-smartdiary-v1");
-        ensureIndexesBestEffort(connection);
     }
 
     private static void ensureIndexesBestEffort(Connection connection) {

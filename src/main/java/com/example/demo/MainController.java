@@ -55,7 +55,7 @@ public class MainController implements Initializable {
     @FXML private TextField locationField;
     @FXML private ListView<Event> eventsListView;
     @FXML private Label selectedDateLabel;
-    @FXML private ComboBox<User> participantsCombo;
+    @FXML private ComboBox<String> participantsCombo;
     @FXML private ListView<String> selectedParticipantsList;
     @FXML private CheckBox checkAvailabilityCheck;
 
@@ -124,22 +124,22 @@ public class MainController implements Initializable {
             return;
         }
 
-        participantsCombo.setItems(FXCollections.observableArrayList(allUsers));
+        ObservableList<String> participantNames = FXCollections.observableArrayList();
+        for (User user : allUsers) {
+            participantNames.add(user.getFullName());
+        }
+
+        participantsCombo.setItems(participantNames);
         participantsCombo.setPromptText(allUsers.isEmpty() ? "No participants found in database" : "Choose participant");
-        participantsCombo.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(User item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getFullName());
+    }
+
+    private User findUserByFullName(String fullName) {
+        for (User user : allUsers) {
+            if (user.getFullName().equals(fullName)) {
+                return user;
             }
-        });
-        participantsCombo.setCellFactory(list -> new ListCell<>() {
-            @Override
-            protected void updateItem(User item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.getFullName());
-            }
-        });
+        }
+        return null;
     }
 
     private void initializeTimeComboBoxes() {
@@ -258,7 +258,7 @@ public class MainController implements Initializable {
 
     @FXML
     private void addParticipant() {
-        User selectedUser = participantsCombo.getValue();
+        User selectedUser = findUserByFullName(participantsCombo.getValue());
         if (selectedUser != null && !selectedParticipants.contains(selectedUser)) {
             selectedParticipants.add(selectedUser);
             updateParticipantsList();
