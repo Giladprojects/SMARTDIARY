@@ -104,9 +104,10 @@ public class MainController implements Initializable {
                 if (empty || item == null) {
                     setText(null);
                 } else {
+                    String stars = "*".repeat(Math.max(1, item.getPriority()));
                     setText(String.format(
                             "%s %s - %s | %s",
-                            "★".repeat(item.getPriority()),
+                            stars,
                             item.getStartTime().toLocalTime(),
                             item.getEndTime().toLocalTime(),
                             item.getTitle()
@@ -126,16 +127,24 @@ public class MainController implements Initializable {
 
         ObservableList<String> participantNames = FXCollections.observableArrayList();
         for (User user : allUsers) {
-            participantNames.add(user.getFullName());
+            participantNames.add(formatUserOption(user));
         }
 
         participantsCombo.setItems(participantNames);
         participantsCombo.setPromptText(allUsers.isEmpty() ? "No participants found in database" : "Choose participant");
     }
 
-    private User findUserByFullName(String fullName) {
+    private String formatUserOption(User user) {
+        return user.getFullName() + " (" + user.getUsername() + ")";
+    }
+
+    private User findUserByOption(String selectedOption) {
+        if (selectedOption == null || selectedOption.isBlank()) {
+            return null;
+        }
+
         for (User user : allUsers) {
-            if (user.getFullName().equals(fullName)) {
+            if (formatUserOption(user).equals(selectedOption)) {
                 return user;
             }
         }
@@ -228,7 +237,7 @@ public class MainController implements Initializable {
                 .count();
 
         if (count > 0) {
-            Label countLabel = new Label("• " + count + " events");
+            Label countLabel = new Label("* " + count + " events");
             countLabel.setStyle("-fx-font-size: 10px;");
             cell.getChildren().add(countLabel);
         }
@@ -258,7 +267,7 @@ public class MainController implements Initializable {
 
     @FXML
     private void addParticipant() {
-        User selectedUser = findUserByFullName(participantsCombo.getValue());
+        User selectedUser = findUserByOption(participantsCombo.getValue());
         if (selectedUser != null && !selectedParticipants.contains(selectedUser)) {
             selectedParticipants.add(selectedUser);
             updateParticipantsList();
@@ -269,7 +278,7 @@ public class MainController implements Initializable {
     private void updateParticipantsList() {
         ObservableList<String> items = FXCollections.observableArrayList();
         for (User user : selectedParticipants) {
-            items.add("• " + user.getFullName());
+            items.add("* " + user.getFullName());
         }
         selectedParticipantsList.setItems(items);
     }
@@ -283,8 +292,15 @@ public class MainController implements Initializable {
             }
 
             LocalDate date = datePicker.getValue();
-            LocalTime startTime = LocalTime.parse(startTimeCombo.getValue());
-            LocalTime endTime = LocalTime.parse(endTimeCombo.getValue());
+            String startTimeValue = startTimeCombo.getValue();
+            String endTimeValue = endTimeCombo.getValue();
+            if (date == null || startTimeValue == null || endTimeValue == null) {
+                showAlert("Please choose a date, start time, and end time.", Alert.AlertType.WARNING);
+                return;
+            }
+
+            LocalTime startTime = LocalTime.parse(startTimeValue);
+            LocalTime endTime = LocalTime.parse(endTimeValue);
 
             if (endTime.isBefore(startTime) || endTime.equals(startTime)) {
                 showAlert("End time must be after start time.", Alert.AlertType.ERROR);
@@ -402,7 +418,7 @@ public class MainController implements Initializable {
     private String buildShiftMessage(List<EventShift> shifts) {
         StringBuilder sb = new StringBuilder();
         for (EventShift shift : shifts) {
-            sb.append("• ")
+            sb.append("* ")
                     .append(shift.getEvent().getTitle())
                     .append(" -> ")
                     .append(shift.getNewStart().toLocalTime())

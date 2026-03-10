@@ -25,11 +25,6 @@ public class DatabaseManager {
 
     private Connection connection;
 
-    private static String buildUrl() {
-        Path resolved = resolveDatabasePath();
-        return "jdbc:ucanaccess://" + resolved;
-    }
-
     private static Path resolveDatabasePath() {
         String envPath = System.getenv("SMART_DIARY_DB_PATH");
         if (envPath != null && !envPath.isBlank()) {
