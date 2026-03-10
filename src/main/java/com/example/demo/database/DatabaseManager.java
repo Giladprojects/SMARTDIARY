@@ -37,11 +37,12 @@ public class DatabaseManager {
             }
         }
 
+        Path projectDb = Paths.get("C:\\Users\\Lenovo\\OneDrive\\Desktop\\JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME);
         List<Path> candidates = List.of(
+                projectDb,
                 Paths.get(System.getProperty("user.dir"), "data", DB_FILE_NAME),
                 Paths.get(System.getProperty("user.dir"), DB_FILE_NAME),
-                Paths.get(System.getProperty("user.dir")).resolveSibling(DB_FILE_NAME),
-                Paths.get("C:\\Users\\Lenovo\\OneDrive\\Desktop\\JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME)
+                Paths.get(System.getProperty("user.dir")).resolveSibling(DB_FILE_NAME)
         );
 
         for (Path candidate : candidates) {
@@ -56,9 +57,10 @@ public class DatabaseManager {
     }
 
     public void connect() throws SQLException {
-        connection = DriverManager.getConnection(buildUrl());
+        Path databasePath = resolveDatabasePath();
+        connection = DriverManager.getConnection("jdbc:ucanaccess://" + databasePath);
         DatabaseMigrationTool.migrate(connection);
-        System.out.println("Connected to Access database.");
+        System.out.println("Connected to Access database: " + databasePath.toAbsolutePath());
     }
 
     public void disconnect() {
