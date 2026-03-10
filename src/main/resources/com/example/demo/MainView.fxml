@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.collections.FXCollections?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.demo.MainController"
+            prefHeight="700" prefWidth="1200"
+            style="-fx-background-color: #F5F5F5;">
+
+    <top>
+        <HBox spacing="10" style="-fx-background-color: #2196F3; -fx-padding: 15;"
+              alignment="CENTER_RIGHT">
+            <Label text="Smart Diary"
+                   style="-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Previous Month" onAction="#previousMonth"
+                    style="-fx-background-color: white; -fx-text-fill: #2196F3;"/>
+            <Button text="Today" onAction="#goToToday"
+                    style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
+            <Button text="Next Month" onAction="#nextMonth"
+                    style="-fx-background-color: white; -fx-text-fill: #2196F3;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox spacing="10" style="-fx-padding: 15;">
+            <Label fx:id="currentMonthLabel" text="December 2025"
+                   style="-fx-font-size: 18px; -fx-font-weight: bold;"
+                   alignment="CENTER" maxWidth="Infinity"/>
+
+            <GridPane fx:id="calendarGrid" hgap="5" vgap="5"
+                      style="-fx-background-color: white; -fx-padding: 10;"/>
+        </VBox>
+    </center>
+
+    <right>
+        <ScrollPane fitToWidth="true" style="-fx-background-color: white;">
+            <VBox spacing="12" style="-fx-background-color: #FFFFFF; -fx-padding: 20;"
+                  prefWidth="340">
+
+                <Label text="Add Event"
+                       style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+
+                <VBox spacing="5">
+                    <Label text="Title:"/>
+                    <TextField fx:id="titleField" promptText="Event title"/>
+                </VBox>
+
+                <VBox spacing="5">
+                    <Label text="Date:"/>
+                    <DatePicker fx:id="datePicker" prefWidth="300"/>
+                </VBox>
+
+                <HBox spacing="10">
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <Label text="Start:"/>
+                        <ComboBox fx:id="startTimeCombo" prefWidth="140"/>
+                    </VBox>
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <Label text="End:"/>
+                        <ComboBox fx:id="endTimeCombo" prefWidth="140"/>
+                    </VBox>
+                </HBox>
+
+                <VBox spacing="5">
+                    <Label text="Priority:"/>
+                    <ComboBox fx:id="priorityCombo" prefWidth="300">
+                        <items>
+                            <FXCollections fx:factory="observableArrayList">
+                                <String fx:value="Highest (5)"/>
+                                <String fx:value="High (4)"/>
+                                <String fx:value="Medium (3)"/>
+                                <String fx:value="Low (2)"/>
+                                <String fx:value="Lowest (1)"/>
+                            </FXCollections>
+                        </items>
+                    </ComboBox>
+                </VBox>
+
+                <VBox spacing="5">
+                    <Label text="Location:"/>
+                    <TextField fx:id="locationField" promptText="Room / location"/>
+                </VBox>
+
+                <Separator/>
+
+                <VBox spacing="8">
+                    <Label text="Participants:" style="-fx-font-weight: bold;"/>
+
+                    <ComboBox fx:id="participantsCombo"
+                              promptText="Choose participant"
+                              prefWidth="300"
+                              onAction="#addParticipant"/>
+
+                    <ListView fx:id="selectedParticipantsList" prefHeight="100"/>
+
+                    <CheckBox fx:id="checkAvailabilityCheck"
+                              text="Run smart conflict checks"
+                              selected="true"/>
+                </VBox>
+
+                <Separator/>
+
+                <Button text="Add Event"
+                        onAction="#addEvent"
+                        style="-fx-background-color: #4CAF50; -fx-text-fill: white;
+                               -fx-font-weight: bold; -fx-font-size: 14px;"
+                        prefWidth="300" prefHeight="40"/>
+
+                <Button text="Delete Selected Event"
+                        onAction="#deleteSelectedEvent"
+                        style="-fx-background-color: #F44336; -fx-text-fill: white;
+                               -fx-font-weight: bold; -fx-font-size: 14px;"
+                        prefWidth="300" prefHeight="40"/>
+            </VBox>
+        </ScrollPane>
+    </right>
+
+    <bottom>
+        <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15;">
+            <Label fx:id="selectedDateLabel" text="Events"
+                   style="-fx-font-size: 14px; -fx-font-weight: bold;"/>
+            <ListView fx:id="eventsListView" prefHeight="150"/>
+        </VBox>
+    </bottom>
+
+</BorderPane>
