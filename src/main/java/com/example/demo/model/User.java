@@ -5,14 +5,12 @@ public class User {
     private String username;
     private String fullName;
     private String email;
-    private String role;
 
-    public User(int userId, String username, String fullName, String email, String role) {
+    public User(int userId, String username, String fullName, String email) {
         this.userId = userId;
         this.username = username;
         this.fullName = fullName;
         this.email = email;
-        this.role = role;
     }
 
     public int getUserId() {
@@ -45,14 +43,6 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
     }
 
     @Override

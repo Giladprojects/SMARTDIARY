@@ -193,8 +193,7 @@ public class DatabaseManager {
                         rs.getInt("user_id"),
                         rs.getString("username"),
                         rs.getString("full_name"),
-                        rs.getString("email"),
-                        rs.getString("role")
+                        rs.getString("email")
                 );
                 users.add(user);
             }
@@ -235,15 +234,14 @@ public class DatabaseManager {
             stmt.setInt(1, eventId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    User user = new User(
-                            rs.getInt("user_id"),
-                            rs.getString("username"),
-                            rs.getString("full_name"),
-                            rs.getString("email"),
-                            rs.getString("role")
-                    );
-                    participants.add(user);
-                }
+                User user = new User(
+                        rs.getInt("user_id"),
+                        rs.getString("username"),
+                        rs.getString("full_name"),
+                        rs.getString("email")
+                );
+                participants.add(user);
+            }
             }
 
         } catch (SQLException e) {

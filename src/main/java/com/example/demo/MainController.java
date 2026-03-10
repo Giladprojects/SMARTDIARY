@@ -127,6 +127,14 @@ public class MainController implements Initializable {
         endTimeCombo.setItems(times);
         startTimeCombo.setValue("09:00");
         endTimeCombo.setValue("10:00");
+
+        priorityCombo.setItems(FXCollections.observableArrayList(
+                "Highest (5)",
+                "High (4)",
+                "Medium (3)",
+                "Low (2)",
+                "Lowest (1)"
+        ));
     }
 
     private void updateCalendarView() {

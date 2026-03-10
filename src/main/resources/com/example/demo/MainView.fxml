@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.collections.FXCollections?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
@@ -67,17 +66,7 @@
 
                 <VBox spacing="5">
                     <Label text="Priority:"/>
-                    <ComboBox fx:id="priorityCombo" prefWidth="300">
-                        <items>
-                            <FXCollections fx:factory="observableArrayList">
-                                <String fx:value="Highest (5)"/>
-                                <String fx:value="High (4)"/>
-                                <String fx:value="Medium (3)"/>
-                                <String fx:value="Low (2)"/>
-                                <String fx:value="Lowest (1)"/>
-                            </FXCollections>
-                        </items>
-                    </ComboBox>
+                    <ComboBox fx:id="priorityCombo" prefWidth="300"/>
                 </VBox>
 
                 <VBox spacing="5">

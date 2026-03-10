@@ -53,7 +53,6 @@ public final class DatabaseMigrationTool {
                         username TEXT(100) NOT NULL,
                         full_name TEXT(150) NOT NULL,
                         email TEXT(150),
-                        role TEXT(50),
                         created_at DATETIME
                     )
                     """);
@@ -63,7 +62,6 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "users", "username", "TEXT(100)");
         ensureColumn(connection, "users", "full_name", "TEXT(150)");
         ensureColumn(connection, "users", "email", "TEXT(150)");
-        ensureColumn(connection, "users", "role", "TEXT(50)");
         ensureColumn(connection, "users", "created_at", "DATETIME");
     }
 
@@ -249,11 +247,11 @@ public final class DatabaseMigrationTool {
             return;
         }
 
-        String sql = "INSERT INTO users (username, full_name, email, role, created_at) VALUES (?, ?, ?, ?, NOW())";
+        String sql = "INSERT INTO users (username, full_name, email, created_at) VALUES (?, ?, ?, NOW())";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            insertSeedUser(stmt, "owner", "Project Owner", "owner@smartdiary.local", "owner");
-            insertSeedUser(stmt, "participant1", "Default Participant 1", "p1@smartdiary.local", "participant");
-            insertSeedUser(stmt, "participant2", "Default Participant 2", "p2@smartdiary.local", "participant");
+            insertSeedUser(stmt, "owner", "Project Owner", "owner@smartdiary.local");
+            insertSeedUser(stmt, "participant1", "Default Participant 1", "p1@smartdiary.local");
+            insertSeedUser(stmt, "participant2", "Default Participant 2", "p2@smartdiary.local");
         }
     }
 
@@ -280,13 +278,11 @@ public final class DatabaseMigrationTool {
             PreparedStatement stmt,
             String username,
             String fullName,
-            String email,
-            String role
+            String email
     ) throws SQLException {
         stmt.setString(1, username);
         stmt.setString(2, fullName);
         stmt.setString(3, email);
-        stmt.setString(4, role);
         stmt.executeUpdate();
     }
 
