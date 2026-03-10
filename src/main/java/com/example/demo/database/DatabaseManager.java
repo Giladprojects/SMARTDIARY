@@ -15,11 +15,13 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class DatabaseManager {
 
     private static final String DB_FILE_NAME = "DATABASEFORJAVAFX.accdb";
+    private static final String DB_TMP_FILE_NAME = "DATABASEFORJAVAFX_tmp_build.accdb";
 
     private Connection connection;
 
@@ -37,23 +39,44 @@ public class DatabaseManager {
             }
         }
 
-        Path projectDb = Paths.get("C:\\Users\\Lenovo\\OneDrive\\Desktop\\JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME);
-        List<Path> candidates = List.of(
-                projectDb,
-                Paths.get(System.getProperty("user.dir"), "data", DB_FILE_NAME),
-                Paths.get(System.getProperty("user.dir"), DB_FILE_NAME),
-                Paths.get(System.getProperty("user.dir")).resolveSibling(DB_FILE_NAME)
-        );
+        String userHome = System.getProperty("user.home");
+        List<Path> candidates = new ArrayList<>();
+        addCandidatePair(candidates, Paths.get(System.getProperty("user.dir")).resolveSibling(DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(System.getProperty("user.dir"), "data", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(System.getProperty("user.dir"), DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "Desktop", "JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "Desktop", "JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "Documents", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "Documents", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "מסמכים", DB_FILE_NAME));
 
-        for (Path candidate : candidates) {
-            if (Files.exists(candidate)) {
-                return candidate;
-            }
+        return candidates.stream()
+                .filter(Files::exists)
+                .max(Comparator
+                        .comparingInt(DatabaseManager::countUsersBestEffort)
+                        .thenComparing(Path::toString))
+                .orElseThrow(() -> new IllegalStateException(
+                        "Access database file not found. Set SMART_DIARY_DB_PATH or place " + DB_FILE_NAME + " in /data"
+                ));
+    }
+
+    private static void addCandidatePair(List<Path> candidates, Path primaryPath) {
+        candidates.add(primaryPath);
+        String fileName = primaryPath.getFileName().toString();
+        if (DB_FILE_NAME.equalsIgnoreCase(fileName)) {
+            candidates.add(primaryPath.resolveSibling(DB_TMP_FILE_NAME));
         }
+    }
 
-        throw new IllegalStateException(
-                "Access database file not found. Set SMART_DIARY_DB_PATH or place " + DB_FILE_NAME + " in /data"
-        );
+    private static int countUsersBestEffort(Path path) {
+        try (Connection testConnection = DriverManager.getConnection("jdbc:ucanaccess://" + path);
+             Statement stmt = testConnection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
+            rs.next();
+            return rs.getInt(1);
+        } catch (Exception ignored) {
+            return -1;
+        }
     }
 
     public void connect() throws SQLException {
