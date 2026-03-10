@@ -30,8 +30,19 @@ public final class DatabaseMigrationTool {
         ensureEventsTable(connection);
         ensureParticipantsTable(connection);
         ensureConflictsTable(connection);
-        ensureIndexes(connection);
+        ensureSchemaMigrationsTable(connection);
         seedUsers(connection);
+        markSchemaVersion(connection, "2026-03-10-smartdiary-v1");
+        ensureIndexesBestEffort(connection);
+    }
+
+    private static void ensureIndexesBestEffort(Connection connection) {
+        try {
+            ensureIndexes(connection);
+        } catch (Exception ignored) {
+            // Access driver can report duplicate index as a hard failure on some files.
+            // Indexes are performance-only, so schema migration continues.
+        }
     }
 
     private static void ensureUsersTable(Connection connection) throws SQLException {
@@ -130,6 +141,22 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "conflicts", "resolution", "MEMO");
     }
 
+    private static void ensureSchemaMigrationsTable(Connection connection) throws SQLException {
+        if (!tableExists(connection, "schema_migrations")) {
+            execute(connection, """
+                    CREATE TABLE schema_migrations (
+                        id COUNTER PRIMARY KEY,
+                        version_tag TEXT(100) NOT NULL,
+                        applied_at DATETIME
+                    )
+                    """);
+            return;
+        }
+
+        ensureColumn(connection, "schema_migrations", "version_tag", "TEXT(100)");
+        ensureColumn(connection, "schema_migrations", "applied_at", "DATETIME");
+    }
+
     private static void ensureIndexes(Connection connection) throws SQLException {
         ensureIndex(connection, "events", "idx_events_start_time", "CREATE INDEX idx_events_start_time ON events (start_time)");
         ensureIndex(connection, "events", "idx_events_end_time", "CREATE INDEX idx_events_end_time ON events (end_time)");
@@ -173,7 +200,15 @@ public final class DatabaseMigrationTool {
 
     private static void ensureIndex(Connection connection, String tableName, String indexName, String createSql) throws SQLException {
         if (!indexExists(connection, tableName, indexName)) {
-            execute(connection, createSql);
+            try {
+                execute(connection, createSql);
+            } catch (Exception ex) {
+                String msg = ex.getMessage();
+                if (msg != null && msg.toLowerCase().contains("duplicate index name")) {
+                    return;
+                }
+                throw ex;
+            }
         }
     }
 
@@ -219,6 +254,25 @@ public final class DatabaseMigrationTool {
             insertSeedUser(stmt, "owner", "Project Owner", "owner@smartdiary.local", "owner");
             insertSeedUser(stmt, "participant1", "Default Participant 1", "p1@smartdiary.local", "participant");
             insertSeedUser(stmt, "participant2", "Default Participant 2", "p2@smartdiary.local", "participant");
+        }
+    }
+
+    private static void markSchemaVersion(Connection connection, String versionTag) throws SQLException {
+        String checkSql = "SELECT COUNT(*) FROM schema_migrations WHERE version_tag = ?";
+        try (PreparedStatement check = connection.prepareStatement(checkSql)) {
+            check.setString(1, versionTag);
+            try (ResultSet rs = check.executeQuery()) {
+                rs.next();
+                if (rs.getInt(1) > 0) {
+                    return;
+                }
+            }
+        }
+
+        String insertSql = "INSERT INTO schema_migrations (version_tag, applied_at) VALUES (?, NOW())";
+        try (PreparedStatement insert = connection.prepareStatement(insertSql)) {
+            insert.setString(1, versionTag);
+            insert.executeUpdate();
         }
     }
 
