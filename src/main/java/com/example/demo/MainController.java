@@ -51,6 +51,7 @@ public class MainController implements Initializable {
     @FXML private ComboBox<String> startTimeCombo;
     @FXML private ComboBox<String> endTimeCombo;
     @FXML private ComboBox<String> priorityCombo;
+    @FXML private TextField descriptionField;
     @FXML private TextField locationField;
     @FXML private ListView<Event> eventsListView;
     @FXML private Label selectedDateLabel;
@@ -72,6 +73,7 @@ public class MainController implements Initializable {
         currentYearMonth = YearMonth.now();
         selectedDate = LocalDate.now();
         eventsList = new ArrayList<>();
+        allUsers = new ArrayList<>();
         selectedParticipants = new ArrayList<>();
         smartScheduler = new SmartScheduler();
 
@@ -80,16 +82,13 @@ public class MainController implements Initializable {
             dbManager.connect();
             eventsList = dbManager.getAllEvents();
             allUsers = dbManager.getAllUsers();
-
-            if (participantsCombo != null) {
-                participantsCombo.setItems(FXCollections.observableArrayList(allUsers));
-            }
         } catch (SQLException e) {
             showAlert("Database connection error: " + e.getMessage(), Alert.AlertType.ERROR);
             e.printStackTrace();
         }
 
         initializeTimeComboBoxes();
+        initializeParticipantsCombo();
         priorityCombo.setValue("Medium (3)");
         datePicker.setValue(LocalDate.now());
 
@@ -114,6 +113,29 @@ public class MainController implements Initializable {
 
         updateCalendarView();
         selectDate(LocalDate.now());
+    }
+
+    private void initializeParticipantsCombo() {
+        if (participantsCombo == null) {
+            return;
+        }
+
+        participantsCombo.setItems(FXCollections.observableArrayList(allUsers));
+        participantsCombo.setPromptText(allUsers.isEmpty() ? "No participants found in database" : "Choose participant");
+        participantsCombo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(User item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getFullName());
+            }
+        });
+        participantsCombo.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(User item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getFullName());
+            }
+        });
     }
 
     private void initializeTimeComboBoxes() {
@@ -271,7 +293,7 @@ public class MainController implements Initializable {
                     LocalDateTime.of(date, startTime),
                     LocalDateTime.of(date, endTime),
                     getPriorityValue(priorityCombo.getValue()),
-                    "",
+                    descriptionField.getText().trim(),
                     locationField.getText().trim()
             );
 
@@ -443,12 +465,14 @@ public class MainController implements Initializable {
 
     private void clearForm() {
         titleField.clear();
+        descriptionField.clear();
         locationField.clear();
         priorityCombo.setValue("Medium (3)");
         startTimeCombo.setValue("09:00");
         endTimeCombo.setValue("10:00");
         selectedParticipants.clear();
         updateParticipantsList();
+        participantsCombo.setValue(null);
     }
 
     private int getPriorityValue(String text) {

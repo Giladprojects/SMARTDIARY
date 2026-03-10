@@ -70,6 +70,11 @@
                 </VBox>
 
                 <VBox spacing="5">
+                    <Label text="Description:"/>
+                    <TextField fx:id="descriptionField" promptText="Event description"/>
+                </VBox>
+
+                <VBox spacing="5">
                     <Label text="Location:"/>
                     <TextField fx:id="locationField" promptText="Room / location"/>
                 </VBox>
@@ -81,8 +86,11 @@
 
                     <ComboBox fx:id="participantsCombo"
                               promptText="Choose participant"
-                              prefWidth="300"
-                              onAction="#addParticipant"/>
+                              prefWidth="300"/>
+
+                    <Button text="Add Participant"
+                            onAction="#addParticipant"
+                            prefWidth="300"/>
 
                     <ListView fx:id="selectedParticipantsList" prefHeight="100"/>
 
