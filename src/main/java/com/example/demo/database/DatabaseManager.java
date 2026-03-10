@@ -22,10 +22,19 @@ public class DatabaseManager {
 
     private static final String DB_FILE_NAME = "DATABASEFORJAVAFX.accdb";
     private static final String DB_TMP_FILE_NAME = "DATABASEFORJAVAFX_tmp_build.accdb";
+    private static final String DB_PATH_PROPERTY = "smart.diary.db.path";
 
     private Connection connection;
 
     private static Path resolveDatabasePath() {
+        String propertyPath = System.getProperty(DB_PATH_PROPERTY);
+        if (propertyPath != null && !propertyPath.isBlank()) {
+            Path path = Paths.get(propertyPath);
+            if (Files.exists(path)) {
+                return path;
+            }
+        }
+
         String envPath = System.getenv("SMART_DIARY_DB_PATH");
         if (envPath != null && !envPath.isBlank()) {
             Path path = Paths.get(envPath);

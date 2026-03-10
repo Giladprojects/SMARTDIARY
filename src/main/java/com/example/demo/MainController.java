@@ -86,7 +86,7 @@ public class MainController implements Initializable {
                 dbManager.ensureDefaultUsersIfMissing();
                 allUsers = dbManager.getAllUsers();
             }
-        } catch (SQLException e) {
+        } catch (SQLException | RuntimeException e) {
             showAlert("Database connection error: " + e.getMessage(), Alert.AlertType.ERROR);
             e.printStackTrace();
         }
