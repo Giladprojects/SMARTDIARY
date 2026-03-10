@@ -230,6 +230,36 @@ public class DatabaseManager {
         return users;
     }
 
+    public void ensureDefaultUsersIfMissing() {
+        String countSql = "SELECT COUNT(*) FROM users";
+        String insertSql = "INSERT INTO users (username, full_name, email, created_at) VALUES (?, ?, ?, ?)";
+
+        try (Statement countStmt = connection.createStatement();
+             ResultSet rs = countStmt.executeQuery(countSql)) {
+
+            rs.next();
+            if (rs.getInt(1) > 0) {
+                return;
+            }
+
+            try (PreparedStatement insertStmt = connection.prepareStatement(insertSql)) {
+                insertDefaultUser(insertStmt, "owner", "Project Owner", "owner@smartdiary.local");
+                insertDefaultUser(insertStmt, "participant1", "Default Participant 1", "p1@smartdiary.local");
+                insertDefaultUser(insertStmt, "participant2", "Default Participant 2", "p2@smartdiary.local");
+            }
+        } catch (SQLException e) {
+            System.err.println("Ensure default users failed: " + e.getMessage());
+        }
+    }
+
+    private void insertDefaultUser(PreparedStatement stmt, String username, String fullName, String email) throws SQLException {
+        stmt.setString(1, username);
+        stmt.setString(2, fullName);
+        stmt.setString(3, email);
+        stmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+        stmt.executeUpdate();
+    }
+
     public boolean addParticipant(int eventId, int userId, boolean isRequired) {
         String sql = "INSERT INTO participants (event_id, user_id, status, is_required, invited_at) " +
                 "VALUES (?, ?, ?, ?, ?)";
