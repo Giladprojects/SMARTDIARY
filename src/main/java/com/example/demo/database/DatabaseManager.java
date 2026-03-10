@@ -57,6 +57,7 @@ public class DatabaseManager {
 
     public void connect() throws SQLException {
         connection = DriverManager.getConnection(buildUrl());
+        DatabaseMigrationTool.migrate(connection);
         System.out.println("Connected to Access database.");
     }
 
