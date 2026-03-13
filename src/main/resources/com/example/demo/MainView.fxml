@@ -70,6 +70,22 @@
                 </VBox>
 
                 <VBox spacing="5">
+                    <Label text="Repeat:"/>
+                    <ComboBox fx:id="recurrenceCombo" prefWidth="300"/>
+                </VBox>
+
+                <HBox spacing="10">
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <Label text="Repeat For:"/>
+                        <ComboBox fx:id="repeatUntilCombo" prefWidth="190"/>
+                    </VBox>
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <Label text="Count:"/>
+                        <TextField fx:id="repeatCountField" promptText="Number" prefWidth="100"/>
+                    </VBox>
+                </HBox>
+
+                <VBox spacing="5">
                     <Label text="Description:"/>
                     <TextField fx:id="descriptionField" promptText="Event description"/>
                 </VBox>

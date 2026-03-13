@@ -1,6 +1,7 @@
 package com.example.demo.database;
 
 import com.example.demo.model.Event;
+import com.example.demo.model.RecurringEventSeries;
 import com.example.demo.model.User;
 
 import java.nio.file.Files;
@@ -13,6 +14,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -23,6 +25,7 @@ public class DatabaseManager {
     private static final String DB_FILE_NAME = "DATABASEFORJAVAFX.accdb";
     private static final String DB_TMP_FILE_NAME = "DATABASEFORJAVAFX_tmp_build.accdb";
     private static final String DB_PATH_PROPERTY = "smart.diary.db.path";
+    private static final int FOREVER_HORIZON_MONTHS = 12;
 
     private Connection connection;
 
@@ -52,7 +55,7 @@ public class DatabaseManager {
         addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "Desktop", "JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME));
         addCandidatePair(candidates, Paths.get(userHome, "Documents", DB_FILE_NAME));
         addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "Documents", DB_FILE_NAME));
-        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "מסמכים", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "׳׳¡׳׳›׳™׳", DB_FILE_NAME));
 
         return candidates.stream()
                 .filter(Files::exists)
@@ -87,6 +90,7 @@ public class DatabaseManager {
         Path databasePath = resolveDatabasePath();
         connection = DriverManager.getConnection("jdbc:ucanaccess://" + databasePath);
         DatabaseMigrationTool.migrate(connection);
+        syncRecurringEventOccurrences();
         System.out.println("Connected to Access database: " + databasePath.toAbsolutePath());
     }
 
@@ -95,59 +99,62 @@ public class DatabaseManager {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     public boolean insertEvent(Event event) {
-        String sql = "INSERT INTO events (user_id, title, start_time, end_time, priority, description, location, created_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setInt(1, 1);
-            stmt.setString(2, event.getTitle());
-            stmt.setTimestamp(3, Timestamp.valueOf(event.getStartTime()));
-            stmt.setTimestamp(4, Timestamp.valueOf(event.getEndTime()));
-            stmt.setInt(5, event.getPriority());
-            stmt.setString(6, event.getDescription());
-            stmt.setString(7, event.getLocation());
-            stmt.setTimestamp(8, new Timestamp(System.currentTimeMillis()));
-
-            int rows = stmt.executeUpdate();
-            if (rows <= 0) {
-                return false;
-            }
-
-            int newId = readGeneratedKey(stmt);
-            if (newId > 0) {
-                event.setId(newId);
-            }
-            return true;
-
+        try {
+            insertEventRow(event);
+            return event.getId() > 0;
         } catch (SQLException e) {
             System.err.println("Insert event failed: " + e.getMessage());
             return false;
         }
     }
 
-    private int readGeneratedKey(PreparedStatement stmt) {
-        try (ResultSet rs = stmt.getGeneratedKeys()) {
-            if (rs != null && rs.next()) {
-                return rs.getInt(1);
-            }
-        } catch (SQLException ignored) {
-        }
+    public int createRecurringEventSeries(RecurringEventSeries series, List<User> participants) {
+        String sql = """
+                INSERT INTO recurring_event_series (
+                    user_id, title, start_time, end_time, priority, description, location, frequency, until_date, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
 
-        try (Statement identityStmt = connection.createStatement();
-             ResultSet idRs = identityStmt.executeQuery("SELECT @@IDENTITY")) {
-            if (idRs.next()) {
-                return idRs.getInt(1);
+        try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setInt(1, 1);
+            stmt.setString(2, series.getTitle());
+            stmt.setTimestamp(3, Timestamp.valueOf(series.getStartTime()));
+            stmt.setTimestamp(4, Timestamp.valueOf(series.getEndTime()));
+            stmt.setInt(5, series.getPriority());
+            stmt.setString(6, series.getDescription());
+            stmt.setString(7, series.getLocation());
+            stmt.setString(8, series.getFrequency());
+            if (series.getUntilDate() == null) {
+                stmt.setNull(9, Types.TIMESTAMP);
+            } else {
+                stmt.setTimestamp(9, Timestamp.valueOf(series.getUntilDate()));
             }
-        } catch (SQLException ignored) {
-        }
+            stmt.setTimestamp(10, new Timestamp(System.currentTimeMillis()));
 
-        return 0;
+            if (stmt.executeUpdate() <= 0) {
+                return -1;
+            }
+
+            int recurrenceId = readGeneratedKey(stmt);
+            if (recurrenceId <= 0) {
+                return -1;
+            }
+
+            series.setRecurrenceId(recurrenceId);
+            for (User participant : participants) {
+                addRecurringParticipant(recurrenceId, participant.getUserId(), false);
+            }
+            return materializeSeriesOccurrences(series);
+        } catch (SQLException e) {
+            System.err.println("Create recurring series failed: " + e.getMessage());
+            return -1;
+        }
     }
 
     public List<Event> getAllEvents() {
@@ -158,16 +165,7 @@ public class DatabaseManager {
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                Event event = new Event(
-                        rs.getInt("event_id"),
-                        rs.getString("title"),
-                        rs.getTimestamp("start_time").toLocalDateTime(),
-                        rs.getTimestamp("end_time").toLocalDateTime(),
-                        rs.getInt("priority"),
-                        rs.getString("description") != null ? rs.getString("description") : "",
-                        rs.getString("location") != null ? rs.getString("location") : ""
-                );
-                events.add(event);
+                events.add(mapEvent(rs));
             }
 
         } catch (SQLException e) {
@@ -177,7 +175,26 @@ public class DatabaseManager {
         return events;
     }
 
+    public List<Event> getEventsByRecurrenceId(int recurrenceId) {
+        List<Event> events = new ArrayList<>();
+        String sql = "SELECT * FROM events WHERE recurrence_id = ? ORDER BY start_time";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, recurrenceId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    events.add(mapEvent(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Load recurring events failed: " + e.getMessage());
+        }
+
+        return events;
+    }
+
     public boolean deleteEvent(int eventId) {
+        deleteParticipantsForEvent(eventId);
         String sql = "DELETE FROM events WHERE event_id = ?";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -185,6 +202,34 @@ public class DatabaseManager {
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("Delete event failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean deleteRecurringSeries(int recurrenceId) {
+        try {
+            for (Event event : getEventsByRecurrenceId(recurrenceId)) {
+                deleteParticipantsForEvent(event.getId());
+            }
+
+            try (PreparedStatement deleteEvents = connection.prepareStatement("DELETE FROM events WHERE recurrence_id = ?");
+                 PreparedStatement deleteRecurringParticipants = connection.prepareStatement(
+                         "DELETE FROM recurring_participants WHERE recurrence_id = ?"
+                 );
+                 PreparedStatement deleteSeries = connection.prepareStatement(
+                         "DELETE FROM recurring_event_series WHERE recurrence_id = ?"
+                 )) {
+                deleteEvents.setInt(1, recurrenceId);
+                deleteEvents.executeUpdate();
+
+                deleteRecurringParticipants.setInt(1, recurrenceId);
+                deleteRecurringParticipants.executeUpdate();
+
+                deleteSeries.setInt(1, recurrenceId);
+                return deleteSeries.executeUpdate() > 0;
+            }
+        } catch (SQLException e) {
+            System.err.println("Delete recurring series failed: " + e.getMessage());
             return false;
         }
     }
@@ -256,14 +301,6 @@ public class DatabaseManager {
         }
     }
 
-    private void insertDefaultUser(PreparedStatement stmt, String username, String fullName, String email) throws SQLException {
-        stmt.setString(1, username);
-        stmt.setString(2, fullName);
-        stmt.setString(3, email);
-        stmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
-        stmt.executeUpdate();
-    }
-
     public boolean addParticipant(int eventId, int userId, boolean isRequired) {
         String sql = "INSERT INTO participants (event_id, user_id, status, is_required, invited_at) " +
                 "VALUES (?, ?, ?, ?, ?)";
@@ -293,14 +330,14 @@ public class DatabaseManager {
             stmt.setInt(1, eventId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                User user = new User(
-                        rs.getInt("user_id"),
-                        rs.getString("username"),
-                        rs.getString("full_name"),
-                        rs.getString("email")
-                );
-                participants.add(user);
-            }
+                    User user = new User(
+                            rs.getInt("user_id"),
+                            rs.getString("username"),
+                            rs.getString("full_name"),
+                            rs.getString("email")
+                    );
+                    participants.add(user);
+                }
             }
 
         } catch (SQLException e) {
@@ -328,16 +365,7 @@ public class DatabaseManager {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Event event = new Event(
-                            rs.getInt("event_id"),
-                            rs.getString("title"),
-                            rs.getTimestamp("start_time").toLocalDateTime(),
-                            rs.getTimestamp("end_time").toLocalDateTime(),
-                            rs.getInt("priority"),
-                            rs.getString("description") != null ? rs.getString("description") : "",
-                            rs.getString("location") != null ? rs.getString("location") : ""
-                    );
-                    conflicts.add(event);
+                    conflicts.add(mapEvent(rs));
                 }
             }
 
@@ -365,5 +393,207 @@ public class DatabaseManager {
             System.err.println("Save conflict failed: " + e.getMessage());
             return false;
         }
+    }
+
+    private int insertEventRow(Event event) throws SQLException {
+        String sql = """
+                INSERT INTO events (user_id, title, start_time, end_time, priority, description, location, recurrence_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setInt(1, 1);
+            stmt.setString(2, event.getTitle());
+            stmt.setTimestamp(3, Timestamp.valueOf(event.getStartTime()));
+            stmt.setTimestamp(4, Timestamp.valueOf(event.getEndTime()));
+            stmt.setInt(5, event.getPriority());
+            stmt.setString(6, event.getDescription());
+            stmt.setString(7, event.getLocation());
+            if (event.getRecurrenceId() == null) {
+                stmt.setNull(8, Types.INTEGER);
+            } else {
+                stmt.setInt(8, event.getRecurrenceId());
+            }
+            stmt.setTimestamp(9, new Timestamp(System.currentTimeMillis()));
+
+            int rows = stmt.executeUpdate();
+            if (rows <= 0) {
+                return 0;
+            }
+
+            int newId = readGeneratedKey(stmt);
+            if (newId > 0) {
+                event.setId(newId);
+            }
+            return newId;
+        }
+    }
+
+    private void syncRecurringEventOccurrences() throws SQLException {
+        for (RecurringEventSeries series : getAllRecurringSeries()) {
+            materializeSeriesOccurrences(series);
+        }
+    }
+
+    private List<RecurringEventSeries> getAllRecurringSeries() throws SQLException {
+        List<RecurringEventSeries> seriesList = new ArrayList<>();
+        String sql = "SELECT * FROM recurring_event_series ORDER BY start_time";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                Timestamp untilTimestamp = rs.getTimestamp("until_date");
+                seriesList.add(new RecurringEventSeries(
+                        rs.getInt("recurrence_id"),
+                        rs.getString("title"),
+                        rs.getTimestamp("start_time").toLocalDateTime(),
+                        rs.getTimestamp("end_time").toLocalDateTime(),
+                        rs.getInt("priority"),
+                        defaultString(rs.getString("description")),
+                        defaultString(rs.getString("location")),
+                        rs.getString("frequency"),
+                        untilTimestamp == null ? null : untilTimestamp.toLocalDateTime()
+                ));
+            }
+        }
+
+        return seriesList;
+    }
+
+    private int materializeSeriesOccurrences(RecurringEventSeries series) throws SQLException {
+        int inserted = 0;
+        LocalDateTime endInclusive = resolveMaterializationEnd(series);
+        List<RecurringParticipantAssignment> participants = getRecurringParticipantAssignments(series.getRecurrenceId());
+
+        for (Event occurrence : series.buildOccurrences(endInclusive)) {
+            if (!occurrenceExists(series.getRecurrenceId(), occurrence.getStartTime())) {
+                int eventId = insertEventRow(occurrence);
+                if (eventId > 0) {
+                    for (RecurringParticipantAssignment participant : participants) {
+                        addParticipant(eventId, participant.userId(), participant.isRequired());
+                    }
+                    inserted++;
+                }
+            }
+        }
+
+        return inserted;
+    }
+
+    private LocalDateTime resolveMaterializationEnd(RecurringEventSeries series) {
+        if (series.getUntilDate() != null) {
+            return series.getUntilDate();
+        }
+
+        LocalDateTime base = LocalDateTime.now();
+        if (base.isBefore(series.getStartTime())) {
+            base = series.getStartTime();
+        }
+        return base.plusMonths(FOREVER_HORIZON_MONTHS);
+    }
+
+    private boolean occurrenceExists(int recurrenceId, LocalDateTime startTime) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM events WHERE recurrence_id = ? AND start_time = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, recurrenceId);
+            stmt.setTimestamp(2, Timestamp.valueOf(startTime));
+            try (ResultSet rs = stmt.executeQuery()) {
+                rs.next();
+                return rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    private boolean addRecurringParticipant(int recurrenceId, int userId, boolean isRequired) {
+        String sql = "INSERT INTO recurring_participants (recurrence_id, user_id, is_required, added_at) VALUES (?, ?, ?, ?)";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, recurrenceId);
+            stmt.setInt(2, userId);
+            stmt.setInt(3, isRequired ? 1 : 0);
+            stmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Add recurring participant failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private List<RecurringParticipantAssignment> getRecurringParticipantAssignments(int recurrenceId) throws SQLException {
+        List<RecurringParticipantAssignment> participants = new ArrayList<>();
+        String sql = "SELECT user_id, is_required FROM recurring_participants WHERE recurrence_id = ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, recurrenceId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    participants.add(new RecurringParticipantAssignment(
+                            rs.getInt("user_id"),
+                            rs.getBoolean("is_required")
+                    ));
+                }
+            }
+        }
+
+        return participants;
+    }
+
+    private void deleteParticipantsForEvent(int eventId) {
+        String sql = "DELETE FROM participants WHERE event_id = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, eventId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Delete event participants failed: " + e.getMessage());
+        }
+    }
+
+    private int readGeneratedKey(PreparedStatement stmt) {
+        try (ResultSet rs = stmt.getGeneratedKeys()) {
+            if (rs != null && rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException ignored) {
+        }
+
+        try (Statement identityStmt = connection.createStatement();
+             ResultSet idRs = identityStmt.executeQuery("SELECT @@IDENTITY")) {
+            if (idRs.next()) {
+                return idRs.getInt(1);
+            }
+        } catch (SQLException ignored) {
+        }
+
+        return 0;
+    }
+
+    private void insertDefaultUser(PreparedStatement stmt, String username, String fullName, String email) throws SQLException {
+        stmt.setString(1, username);
+        stmt.setString(2, fullName);
+        stmt.setString(3, email);
+        stmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+        stmt.executeUpdate();
+    }
+
+    private Event mapEvent(ResultSet rs) throws SQLException {
+        int recurrenceIdValue = rs.getInt("recurrence_id");
+        Integer recurrenceId = rs.wasNull() ? null : recurrenceIdValue;
+        return new Event(
+                rs.getInt("event_id"),
+                recurrenceId,
+                rs.getString("title"),
+                rs.getTimestamp("start_time").toLocalDateTime(),
+                rs.getTimestamp("end_time").toLocalDateTime(),
+                rs.getInt("priority"),
+                defaultString(rs.getString("description")),
+                defaultString(rs.getString("location"))
+        );
+    }
+
+    private String defaultString(String value) {
+        return value == null ? "" : value;
+    }
+
+    private record RecurringParticipantAssignment(int userId, boolean isRequired) {
     }
 }

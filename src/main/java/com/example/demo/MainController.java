@@ -2,6 +2,7 @@ package com.example.demo;
 
 import com.example.demo.database.DatabaseManager;
 import com.example.demo.model.Event;
+import com.example.demo.model.RecurringEventSeries;
 import com.example.demo.model.User;
 import com.example.demo.scheduler.EventShift;
 import com.example.demo.scheduler.SchedulingDecision;
@@ -51,6 +52,9 @@ public class MainController implements Initializable {
     @FXML private ComboBox<String> startTimeCombo;
     @FXML private ComboBox<String> endTimeCombo;
     @FXML private ComboBox<String> priorityCombo;
+    @FXML private ComboBox<String> recurrenceCombo;
+    @FXML private ComboBox<String> repeatUntilCombo;
+    @FXML private TextField repeatCountField;
     @FXML private TextField descriptionField;
     @FXML private TextField locationField;
     @FXML private ListView<Event> eventsListView;
@@ -92,6 +96,7 @@ public class MainController implements Initializable {
         }
 
         initializeTimeComboBoxes();
+        initializeRecurrenceControls();
         initializeParticipantsCombo();
         priorityCombo.setValue("Medium (3)");
         datePicker.setValue(LocalDate.now());
@@ -105,12 +110,14 @@ public class MainController implements Initializable {
                     setText(null);
                 } else {
                     String stars = "*".repeat(Math.max(1, item.getPriority()));
+                    String recurringMarker = item.getRecurrenceId() == null ? "" : " [Recurring]";
                     setText(String.format(
-                            "%s %s - %s | %s",
+                            "%s %s - %s | %s%s",
                             stars,
                             item.getStartTime().toLocalTime(),
                             item.getEndTime().toLocalTime(),
-                            item.getTitle()
+                            item.getTitle(),
+                            recurringMarker
                     ));
                 }
             }
@@ -172,6 +179,42 @@ public class MainController implements Initializable {
         ));
     }
 
+    private void initializeRecurrenceControls() {
+        if (recurrenceCombo == null || repeatUntilCombo == null || repeatCountField == null) {
+            return;
+        }
+
+        recurrenceCombo.setItems(FXCollections.observableArrayList(
+                "Does not repeat",
+                "Every day",
+                "Every week",
+                "Every month"
+        ));
+        recurrenceCombo.setValue("Does not repeat");
+
+        repeatUntilCombo.setItems(FXCollections.observableArrayList(
+                "Forever",
+                "Days",
+                "Weeks",
+                "Months"
+        ));
+        repeatUntilCombo.setValue("Forever");
+
+        recurrenceCombo.valueProperty().addListener((ignored, oldValue, newValue) -> updateRecurrenceInputs());
+        repeatUntilCombo.valueProperty().addListener((ignored, oldValue, newValue) -> updateRecurrenceInputs());
+        updateRecurrenceInputs();
+    }
+
+    private void updateRecurrenceInputs() {
+        boolean recurring = isRecurringSelection();
+        repeatUntilCombo.setDisable(!recurring);
+        boolean countRequired = recurring && !"Forever".equals(repeatUntilCombo.getValue());
+        repeatCountField.setDisable(!countRequired);
+        if (!countRequired) {
+            repeatCountField.clear();
+        }
+    }
+
     private void updateCalendarView() {
         calendarGrid.getChildren().clear();
 
@@ -193,7 +236,7 @@ public class MainController implements Initializable {
         int daysInMonth = currentYearMonth.lengthOfMonth();
         int dayCounter = 1;
 
-        for (int row = 1; row < 7; row++) {
+        for (int row = 1; row < 7 && dayCounter <= daysInMonth; row++) {
             for (int col = 0; col < 7; col++) {
                 if ((row == 1 && col < dayOfWeek) || dayCounter > daysInMonth) {
                     Pane emptyPane = new Pane();
@@ -207,9 +250,6 @@ public class MainController implements Initializable {
                     calendarGrid.getChildren().add(dayCell);
                     dayCounter++;
                 }
-            }
-            if (dayCounter > daysInMonth) {
-                break;
             }
         }
     }
@@ -286,62 +326,178 @@ public class MainController implements Initializable {
     @FXML
     private void addEvent() {
         try {
-            if (titleField.getText().trim().isEmpty()) {
-                showAlert("Please enter a title.", Alert.AlertType.WARNING);
+            Event newEvent = buildEventFromForm();
+            if (isRecurringSelection()) {
+                addRecurringEvent(newEvent);
                 return;
             }
-
-            LocalDate date = datePicker.getValue();
-            String startTimeValue = startTimeCombo.getValue();
-            String endTimeValue = endTimeCombo.getValue();
-            if (date == null || startTimeValue == null || endTimeValue == null) {
-                showAlert("Please choose a date, start time, and end time.", Alert.AlertType.WARNING);
-                return;
-            }
-
-            LocalTime startTime = LocalTime.parse(startTimeValue);
-            LocalTime endTime = LocalTime.parse(endTimeValue);
-
-            if (endTime.isBefore(startTime) || endTime.equals(startTime)) {
-                showAlert("End time must be after start time.", Alert.AlertType.ERROR);
-                return;
-            }
-
-            Event newEvent = new Event(
-                    0,
-                    titleField.getText().trim(),
-                    LocalDateTime.of(date, startTime),
-                    LocalDateTime.of(date, endTime),
-                    getPriorityValue(priorityCombo.getValue()),
-                    descriptionField.getText().trim(),
-                    locationField.getText().trim()
-            );
-
-            if (checkAvailabilityCheck != null && checkAvailabilityCheck.isSelected()) {
-                SchedulingDecision decision = smartScheduler.decide(newEvent, eventsList);
-                if (!handleDecision(newEvent, decision)) {
-                    return;
-                }
-            }
-
-            if (dbManager.insertEvent(newEvent)) {
-                for (User participant : selectedParticipants) {
-                    dbManager.addParticipant(newEvent.getId(), participant.getUserId(), false);
-                }
-
-                eventsList.add(newEvent);
-                showAlert("Event added successfully.", Alert.AlertType.INFORMATION);
-                clearForm();
-                updateCalendarView();
-                updateEventsList(date);
-            } else {
-                showAlert("Failed to save event.", Alert.AlertType.ERROR);
-            }
+            addSingleEvent(newEvent);
 
         } catch (Exception e) {
             showAlert("Error: " + e.getMessage(), Alert.AlertType.ERROR);
             e.printStackTrace();
         }
+    }
+
+    private Event buildEventFromForm() {
+        if (titleField.getText().trim().isEmpty()) {
+            throw new IllegalArgumentException("Please enter a title.");
+        }
+
+        LocalDate date = datePicker.getValue();
+        String startTimeValue = startTimeCombo.getValue();
+        String endTimeValue = endTimeCombo.getValue();
+        if (date == null || startTimeValue == null || endTimeValue == null) {
+            throw new IllegalArgumentException("Please choose a date, start time, and end time.");
+        }
+
+        LocalTime startTime = LocalTime.parse(startTimeValue);
+        LocalTime endTime = LocalTime.parse(endTimeValue);
+
+        if (endTime.isBefore(startTime) || endTime.equals(startTime)) {
+            throw new IllegalArgumentException("End time must be after start time.");
+        }
+
+        return new Event(
+                0,
+                titleField.getText().trim(),
+                LocalDateTime.of(date, startTime),
+                LocalDateTime.of(date, endTime),
+                getPriorityValue(priorityCombo.getValue()),
+                descriptionField.getText().trim(),
+                locationField.getText().trim()
+        );
+    }
+
+    private void addSingleEvent(Event newEvent) {
+        if (checkAvailabilityCheck != null && checkAvailabilityCheck.isSelected()) {
+            SchedulingDecision decision = smartScheduler.decide(newEvent, eventsList);
+            if (!handleDecision(newEvent, decision)) {
+                return;
+            }
+        }
+
+        if (dbManager.insertEvent(newEvent)) {
+            for (User participant : selectedParticipants) {
+                dbManager.addParticipant(newEvent.getId(), participant.getUserId(), false);
+            }
+
+            eventsList.add(newEvent);
+            showAlert("Event added successfully.", Alert.AlertType.INFORMATION);
+            clearForm();
+            updateCalendarView();
+            updateEventsList(newEvent.getStartTime().toLocalDate());
+        } else {
+            showAlert("Failed to save event.", Alert.AlertType.ERROR);
+        }
+    }
+
+    private void addRecurringEvent(Event baseEvent) {
+        RecurringEventSeries series = buildRecurringSeries(baseEvent);
+        List<Event> occurrences = series.buildOccurrences(resolveRecurringPreviewEnd(series));
+
+        if (checkAvailabilityCheck != null && checkAvailabilityCheck.isSelected()
+                && !recurringSeriesFitsWithoutConflicts(occurrences)) {
+            return;
+        }
+
+        int insertedCount = dbManager.createRecurringEventSeries(series, selectedParticipants);
+        if (insertedCount < 0) {
+            showAlert("Failed to save recurring event series.", Alert.AlertType.ERROR);
+            return;
+        }
+
+        eventsList = dbManager.getAllEvents();
+        showAlert("Recurring event created. " + insertedCount + " occurrences added.", Alert.AlertType.INFORMATION);
+        clearForm();
+        updateCalendarView();
+        updateEventsList(baseEvent.getStartTime().toLocalDate());
+    }
+
+    private RecurringEventSeries buildRecurringSeries(Event baseEvent) {
+        String frequency = mapFrequency(recurrenceCombo.getValue());
+        LocalDateTime untilDate = resolveRepeatUntil(baseEvent.getStartTime());
+        return new RecurringEventSeries(
+                0,
+                baseEvent.getTitle(),
+                baseEvent.getStartTime(),
+                baseEvent.getEndTime(),
+                baseEvent.getPriority(),
+                baseEvent.getDescription(),
+                baseEvent.getLocation(),
+                frequency,
+                untilDate
+        );
+    }
+
+    private LocalDateTime resolveRepeatUntil(LocalDateTime startTime) {
+        String repeatMode = repeatUntilCombo.getValue();
+        if ("Forever".equals(repeatMode)) {
+            return null;
+        }
+
+        int count;
+        try {
+            count = Integer.parseInt(repeatCountField.getText().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Enter a valid repeat count.");
+        }
+
+        if (count <= 0) {
+            throw new IllegalArgumentException("Repeat count must be greater than zero.");
+        }
+
+        return switch (repeatMode) {
+            case "Days" -> startTime.plusDays(count).minusDays(1);
+            case "Weeks" -> startTime.plusWeeks(count).minusDays(1);
+            case "Months" -> startTime.plusMonths(count).minusDays(1);
+            default -> throw new IllegalArgumentException("Choose how long the recurring event should last.");
+        };
+    }
+
+    private LocalDateTime resolveRecurringPreviewEnd(RecurringEventSeries series) {
+        if (series.getUntilDate() != null) {
+            return series.getUntilDate();
+        }
+
+        LocalDateTime previewEnd = LocalDateTime.now();
+        if (previewEnd.isBefore(series.getStartTime())) {
+            previewEnd = series.getStartTime();
+        }
+        return previewEnd.plusMonths(12);
+    }
+
+    private boolean recurringSeriesFitsWithoutConflicts(List<Event> occurrences) {
+        List<Event> workingSchedule = new ArrayList<>(eventsList);
+        for (Event occurrence : occurrences) {
+            SchedulingDecision decision = smartScheduler.decide(occurrence, workingSchedule);
+            if (decision.getType() != SchedulingDecisionType.NO_CONFLICT) {
+                showAlert(
+                        "Recurring event conflicts on "
+                                + occurrence.getStartTime().toLocalDate()
+                                + " at "
+                                + occurrence.getStartTime().toLocalTime()
+                                + ". Adjust the series or turn off smart conflict checks.",
+                        Alert.AlertType.WARNING
+                );
+                return false;
+            }
+            workingSchedule.add(occurrence);
+        }
+        return true;
+    }
+
+    private boolean isRecurringSelection() {
+        return recurrenceCombo != null && recurrenceCombo.getValue() != null
+                && !"Does not repeat".equals(recurrenceCombo.getValue());
+    }
+
+    private String mapFrequency(String value) {
+        return switch (value) {
+            case "Every week" -> RecurringEventSeries.WEEKLY;
+            case "Every month" -> RecurringEventSeries.MONTHLY;
+            default -> RecurringEventSeries.DAILY;
+        };
     }
 
     private boolean handleDecision(Event newEvent, SchedulingDecision decision) {
@@ -464,6 +620,27 @@ public class MainController implements Initializable {
             return;
         }
 
+        if (selected.getRecurrenceId() != null) {
+            Alert confirmRecurring = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmRecurring.setTitle("Delete recurring event");
+            confirmRecurring.setHeaderText("Delete the whole recurring series?");
+            confirmRecurring.setContentText(selected.getTitle());
+
+            if (confirmRecurring.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+                return;
+            }
+
+            if (dbManager.deleteRecurringSeries(selected.getRecurrenceId())) {
+                eventsList = dbManager.getAllEvents();
+                updateCalendarView();
+                updateEventsList(selectedDate);
+                showAlert("Recurring series deleted.", Alert.AlertType.INFORMATION);
+            } else {
+                showAlert("Failed to delete recurring series.", Alert.AlertType.ERROR);
+            }
+            return;
+        }
+
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("Delete event");
         confirm.setHeaderText("Delete selected event?");
@@ -488,11 +665,15 @@ public class MainController implements Initializable {
         descriptionField.clear();
         locationField.clear();
         priorityCombo.setValue("Medium (3)");
+        recurrenceCombo.setValue("Does not repeat");
+        repeatUntilCombo.setValue("Forever");
+        repeatCountField.clear();
         startTimeCombo.setValue("09:00");
         endTimeCombo.setValue("10:00");
         selectedParticipants.clear();
         updateParticipantsList();
         participantsCombo.setValue(null);
+        updateRecurrenceInputs();
     }
 
     private int getPriorityValue(String text) {

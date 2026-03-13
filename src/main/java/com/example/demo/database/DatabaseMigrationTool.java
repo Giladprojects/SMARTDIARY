@@ -30,9 +30,11 @@ public final class DatabaseMigrationTool {
         ensureEventsTable(connection);
         ensureParticipantsTable(connection);
         ensureConflictsTable(connection);
+        ensureRecurringEventSeriesTable(connection);
+        ensureRecurringParticipantsTable(connection);
         ensureSchemaMigrationsTable(connection);
         seedUsers(connection);
-        markSchemaVersion(connection, "2026-03-10-smartdiary-v1");
+        markSchemaVersion(connection, "2026-03-12-smartdiary-recurring-events");
     }
 
     private static void ensureIndexesBestEffort(Connection connection) {
@@ -76,6 +78,7 @@ public final class DatabaseMigrationTool {
                         priority INTEGER,
                         description MEMO,
                         location TEXT(255),
+                        recurrence_id LONG,
                         created_at DATETIME
                     )
                     """);
@@ -89,6 +92,7 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "events", "priority", "INTEGER");
         ensureColumn(connection, "events", "description", "MEMO");
         ensureColumn(connection, "events", "location", "TEXT(255)");
+        ensureColumn(connection, "events", "recurrence_id", "LONG");
         ensureColumn(connection, "events", "created_at", "DATETIME");
     }
 
@@ -138,6 +142,58 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "conflicts", "resolution", "MEMO");
     }
 
+    private static void ensureRecurringEventSeriesTable(Connection connection) throws SQLException {
+        if (!tableExists(connection, "recurring_event_series")) {
+            execute(connection, """
+                    CREATE TABLE recurring_event_series (
+                        recurrence_id COUNTER PRIMARY KEY,
+                        user_id LONG,
+                        title TEXT(255) NOT NULL,
+                        start_time DATETIME NOT NULL,
+                        end_time DATETIME NOT NULL,
+                        priority INTEGER,
+                        description MEMO,
+                        location TEXT(255),
+                        frequency TEXT(20) NOT NULL,
+                        until_date DATETIME,
+                        created_at DATETIME
+                    )
+                    """);
+            return;
+        }
+
+        ensureColumn(connection, "recurring_event_series", "user_id", "LONG");
+        ensureColumn(connection, "recurring_event_series", "title", "TEXT(255)");
+        ensureColumn(connection, "recurring_event_series", "start_time", "DATETIME");
+        ensureColumn(connection, "recurring_event_series", "end_time", "DATETIME");
+        ensureColumn(connection, "recurring_event_series", "priority", "INTEGER");
+        ensureColumn(connection, "recurring_event_series", "description", "MEMO");
+        ensureColumn(connection, "recurring_event_series", "location", "TEXT(255)");
+        ensureColumn(connection, "recurring_event_series", "frequency", "TEXT(20)");
+        ensureColumn(connection, "recurring_event_series", "until_date", "DATETIME");
+        ensureColumn(connection, "recurring_event_series", "created_at", "DATETIME");
+    }
+
+    private static void ensureRecurringParticipantsTable(Connection connection) throws SQLException {
+        if (!tableExists(connection, "recurring_participants")) {
+            execute(connection, """
+                    CREATE TABLE recurring_participants (
+                        recurring_participant_id COUNTER PRIMARY KEY,
+                        recurrence_id LONG NOT NULL,
+                        user_id LONG NOT NULL,
+                        is_required YESNO,
+                        added_at DATETIME
+                    )
+                    """);
+            return;
+        }
+
+        ensureColumn(connection, "recurring_participants", "recurrence_id", "LONG");
+        ensureColumn(connection, "recurring_participants", "user_id", "LONG");
+        ensureColumn(connection, "recurring_participants", "is_required", "YESNO");
+        ensureColumn(connection, "recurring_participants", "added_at", "DATETIME");
+    }
+
     private static void ensureSchemaMigrationsTable(Connection connection) throws SQLException {
         if (!tableExists(connection, "schema_migrations")) {
             execute(connection, """
@@ -157,11 +213,18 @@ public final class DatabaseMigrationTool {
     private static void ensureIndexes(Connection connection) throws SQLException {
         ensureIndex(connection, "events", "idx_events_start_time", "CREATE INDEX idx_events_start_time ON events (start_time)");
         ensureIndex(connection, "events", "idx_events_end_time", "CREATE INDEX idx_events_end_time ON events (end_time)");
+        ensureIndex(connection, "events", "idx_events_recurrence_id", "CREATE INDEX idx_events_recurrence_id ON events (recurrence_id)");
         ensureIndex(
                 connection,
                 "participants",
                 "idx_participants_event_user",
                 "CREATE UNIQUE INDEX idx_participants_event_user ON participants (event_id, user_id)"
+        );
+        ensureIndex(
+                connection,
+                "recurring_participants",
+                "idx_recurring_participants_series_user",
+                "CREATE UNIQUE INDEX idx_recurring_participants_series_user ON recurring_participants (recurrence_id, user_id)"
         );
     }
 

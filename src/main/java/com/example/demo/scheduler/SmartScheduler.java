@@ -114,10 +114,8 @@ public class SmartScheduler {
         }
 
         for (Event event : primary) {
-            if (event.getId() == excludeEventId && excludeEventId != 0) {
-                continue;
-            }
-            if (overlaps(start, end, event.getStartTime(), event.getEndTime())) {
+            if ((event.getId() != excludeEventId || excludeEventId == 0)
+                    && overlaps(start, end, event.getStartTime(), event.getEndTime())) {
                 conflicts.add(event);
             }
         }
