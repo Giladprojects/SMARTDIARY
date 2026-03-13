@@ -6,9 +6,11 @@ import javafx.scene.Parent;
 import javafx.scene.control.ComboBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +27,9 @@ class MainViewSmokeTest {
             "C:\\Users\\Lenovo\\OneDrive\\Desktop\\JAVAPROJECTCOMPLETE SAGE\\DATABASEFORJAVAFX_tmp_build.accdb"
     );
 
+    @TempDir
+    Path tempDir;
+
     @BeforeAll
     static void startFx() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
@@ -36,8 +41,11 @@ class MainViewSmokeTest {
     void mainViewLoadsAndInjectsRequiredControls() throws Exception {
         assertTrue(Files.exists(PROJECT_DB), "Expected test database file to exist");
 
+        Path testDb = tempDir.resolve("DATABASEFORJAVAFX_tmp_build.accdb");
+        Files.copy(PROJECT_DB, testDb, StandardCopyOption.REPLACE_EXISTING);
+
         String previous = System.getProperty(DB_PROPERTY);
-        System.setProperty(DB_PROPERTY, PROJECT_DB.toString());
+        System.setProperty(DB_PROPERTY, testDb.toString());
 
         try {
             CountDownLatch latch = new CountDownLatch(1);
@@ -68,11 +76,15 @@ class MainViewSmokeTest {
             assertNotNull(namespace.get("descriptionField"));
             assertNotNull(namespace.get("eventsListView"));
             assertNotNull(namespace.get("calendarGrid"));
+            assertNotNull(namespace.get("recurrenceCombo"));
+            assertNotNull(namespace.get("repeatUntilCombo"));
 
             ComboBox<?> participantsCombo = (ComboBox<?>) namespace.get("participantsCombo");
             ComboBox<?> priorityCombo = (ComboBox<?>) namespace.get("priorityCombo");
+            ComboBox<?> recurrenceCombo = (ComboBox<?>) namespace.get("recurrenceCombo");
             assertTrue(!participantsCombo.getItems().isEmpty(), "Expected participants to be loaded");
             assertEquals(5, priorityCombo.getItems().size(), "Expected all priority levels to be available");
+            assertEquals(4, recurrenceCombo.getItems().size(), "Expected recurring options to be available");
         } finally {
             restoreProperty(previous);
         }
