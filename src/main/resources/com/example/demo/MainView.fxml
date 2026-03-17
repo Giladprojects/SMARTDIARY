@@ -15,12 +15,17 @@
             <Label text="Smart Diary"
                    style="-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;"/>
             <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="currentUserLabel"
+                   text="Signed in"
+                   style="-fx-text-fill: white; -fx-font-size: 13px; -fx-font-weight: bold;"/>
             <Button text="Previous Month" onAction="#previousMonth"
                     style="-fx-background-color: white; -fx-text-fill: #2196F3;"/>
             <Button text="Today" onAction="#goToToday"
                     style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
             <Button text="Next Month" onAction="#nextMonth"
                     style="-fx-background-color: white; -fx-text-fill: #2196F3;"/>
+            <Button text="Logout" onAction="#logout"
+                    style="-fx-background-color: #0D47A1; -fx-text-fill: white; -fx-font-weight: bold;"/>
         </HBox>
     </top>
 

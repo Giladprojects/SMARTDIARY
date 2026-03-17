@@ -12,6 +12,7 @@ public class RecurringEventSeries {
     public static final String MONTHLY = "MONTHLY";
 
     private int recurrenceId;
+    private int userId;
     private String title;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
@@ -32,7 +33,23 @@ public class RecurringEventSeries {
             String frequency,
             LocalDateTime untilDate
     ) {
+        this(recurrenceId, 1, title, startTime, endTime, priority, description, location, frequency, untilDate);
+    }
+
+    public RecurringEventSeries(
+            int recurrenceId,
+            int userId,
+            String title,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            int priority,
+            String description,
+            String location,
+            String frequency,
+            LocalDateTime untilDate
+    ) {
         this.recurrenceId = recurrenceId;
+        this.userId = userId;
         this.title = title;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -49,6 +66,10 @@ public class RecurringEventSeries {
 
     public void setRecurrenceId(int recurrenceId) {
         this.recurrenceId = recurrenceId;
+    }
+
+    public int getUserId() {
+        return userId;
     }
 
     public String getTitle() {
@@ -99,6 +120,7 @@ public class RecurringEventSeries {
         while (!occurrenceStart.isAfter(endInclusive)) {
             occurrences.add(new Event(
                     0,
+                    userId,
                     recurrenceId == 0 ? null : recurrenceId,
                     title,
                     occurrenceStart,

@@ -1,5 +1,6 @@
 package com.example.demo.database;
 
+import com.example.demo.auth.PasswordUtil;
 import com.example.demo.model.Event;
 import com.example.demo.model.RecurringEventSeries;
 import com.example.demo.model.User;
@@ -18,7 +19,9 @@ import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class DatabaseManager {
 
@@ -122,7 +125,7 @@ public class DatabaseManager {
                 """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setInt(1, 1);
+            stmt.setInt(1, series.getUserId());
             stmt.setString(2, series.getTitle());
             stmt.setTimestamp(3, Timestamp.valueOf(series.getStartTime()));
             stmt.setTimestamp(4, Timestamp.valueOf(series.getEndTime()));
@@ -279,9 +282,113 @@ public class DatabaseManager {
         return users;
     }
 
+    public User authenticateUser(String username, String password) {
+        String sql = "SELECT * FROM users WHERE username = ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, username.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+
+                String storedHash = rs.getString("password_hash");
+                if (!PasswordUtil.matches(password, storedHash)) {
+                    return null;
+                }
+                return mapUser(rs);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Authenticate user failed: " + e.getMessage(), e);
+        }
+    }
+
+    public User registerUser(String username, String fullName, String email, String password) {
+        String normalizedUsername = username == null ? "" : username.trim();
+        if (normalizedUsername.isEmpty()) {
+            throw new IllegalArgumentException("Username is required.");
+        }
+        if (password == null || password.length() < 4) {
+            throw new IllegalArgumentException("Password must be at least 4 characters.");
+        }
+        if (userExists(normalizedUsername)) {
+            throw new IllegalArgumentException("Username already exists.");
+        }
+
+        String sql = """
+                INSERT INTO users (username, full_name, email, password_hash, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, normalizedUsername);
+            stmt.setString(2, fullName == null ? "" : fullName.trim());
+            stmt.setString(3, email == null ? "" : email.trim());
+            stmt.setString(4, PasswordUtil.hash(password));
+            stmt.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
+
+            if (stmt.executeUpdate() <= 0) {
+                throw new IllegalStateException("Failed to create user.");
+            }
+
+            int userId = readGeneratedKey(stmt);
+            return new User(
+                    userId,
+                    normalizedUsername,
+                    fullName == null ? "" : fullName.trim(),
+                    email == null ? "" : email.trim()
+            );
+        } catch (SQLException e) {
+            throw new IllegalStateException("Register user failed: " + e.getMessage(), e);
+        }
+    }
+
+    public List<Event> getCalendarEventsForUser(int userId) {
+        return getCalendarEventsForUsers(List.of(userId));
+    }
+
+    public List<Event> getCalendarEventsForUsers(List<Integer> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+
+        String placeholders = String.join(", ", java.util.Collections.nCopies(userIds.size(), "?"));
+        String sql = """
+                SELECT e.*
+                FROM events e
+                WHERE e.user_id IN (%s)
+                   OR e.event_id IN (
+                       SELECT event_id FROM participants WHERE user_id IN (%s)
+                   )
+                ORDER BY e.start_time
+                """.formatted(placeholders, placeholders);
+
+        Map<Integer, Event> eventsById = new LinkedHashMap<>();
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            int index = 1;
+            for (Integer userId : userIds) {
+                stmt.setInt(index++, userId);
+            }
+            for (Integer userId : userIds) {
+                stmt.setInt(index++, userId);
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Event event = mapEvent(rs);
+                    eventsById.putIfAbsent(event.getId(), event);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Load calendar events failed: " + e.getMessage());
+        }
+
+        return new ArrayList<>(eventsById.values());
+    }
+
     public void ensureDefaultUsersIfMissing() {
         String countSql = "SELECT COUNT(*) FROM users";
-        String insertSql = "INSERT INTO users (username, full_name, email, created_at) VALUES (?, ?, ?, ?)";
+        String insertSql = "INSERT INTO users (username, full_name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)";
 
         try (Statement countStmt = connection.createStatement();
              ResultSet rs = countStmt.executeQuery(countSql)) {
@@ -402,7 +509,7 @@ public class DatabaseManager {
                 """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setInt(1, 1);
+            stmt.setInt(1, event.getUserId());
             stmt.setString(2, event.getTitle());
             stmt.setTimestamp(3, Timestamp.valueOf(event.getStartTime()));
             stmt.setTimestamp(4, Timestamp.valueOf(event.getEndTime()));
@@ -445,6 +552,7 @@ public class DatabaseManager {
                 Timestamp untilTimestamp = rs.getTimestamp("until_date");
                 seriesList.add(new RecurringEventSeries(
                         rs.getInt("recurrence_id"),
+                        rs.getInt("user_id"),
                         rs.getString("title"),
                         rs.getTimestamp("start_time").toLocalDateTime(),
                         rs.getTimestamp("end_time").toLocalDateTime(),
@@ -571,7 +679,8 @@ public class DatabaseManager {
         stmt.setString(1, username);
         stmt.setString(2, fullName);
         stmt.setString(3, email);
-        stmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+        stmt.setString(4, PasswordUtil.hash("password"));
+        stmt.setTimestamp(5, new Timestamp(System.currentTimeMillis()));
         stmt.executeUpdate();
     }
 
@@ -580,6 +689,7 @@ public class DatabaseManager {
         Integer recurrenceId = rs.wasNull() ? null : recurrenceIdValue;
         return new Event(
                 rs.getInt("event_id"),
+                rs.getInt("user_id"),
                 recurrenceId,
                 rs.getString("title"),
                 rs.getTimestamp("start_time").toLocalDateTime(),
@@ -588,6 +698,28 @@ public class DatabaseManager {
                 defaultString(rs.getString("description")),
                 defaultString(rs.getString("location"))
         );
+    }
+
+    private User mapUser(ResultSet rs) throws SQLException {
+        return new User(
+                rs.getInt("user_id"),
+                rs.getString("username"),
+                rs.getString("full_name"),
+                rs.getString("email")
+        );
+    }
+
+    private boolean userExists(String username) {
+        String sql = "SELECT COUNT(*) FROM users WHERE username = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                rs.next();
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Check username failed: " + e.getMessage(), e);
+        }
     }
 
     private String defaultString(String value) {

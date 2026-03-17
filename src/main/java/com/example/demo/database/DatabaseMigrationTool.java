@@ -1,5 +1,7 @@
 package com.example.demo.database;
 
+import com.example.demo.auth.PasswordUtil;
+
 import java.sql.DriverManager;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -34,6 +36,7 @@ public final class DatabaseMigrationTool {
         ensureRecurringParticipantsTable(connection);
         ensureSchemaMigrationsTable(connection);
         seedUsers(connection);
+        backfillMissingUserPasswords(connection);
         markSchemaVersion(connection, "2026-03-12-smartdiary-recurring-events");
     }
 
@@ -54,6 +57,7 @@ public final class DatabaseMigrationTool {
                         username TEXT(100) NOT NULL,
                         full_name TEXT(150) NOT NULL,
                         email TEXT(150),
+                        password_hash TEXT(255),
                         created_at DATETIME
                     )
                     """);
@@ -63,6 +67,7 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "users", "username", "TEXT(100)");
         ensureColumn(connection, "users", "full_name", "TEXT(150)");
         ensureColumn(connection, "users", "email", "TEXT(150)");
+        ensureColumn(connection, "users", "password_hash", "TEXT(255)");
         ensureColumn(connection, "users", "created_at", "DATETIME");
     }
 
@@ -309,11 +314,27 @@ public final class DatabaseMigrationTool {
             return;
         }
 
-        String sql = "INSERT INTO users (username, full_name, email, created_at) VALUES (?, ?, ?, NOW())";
+        String sql = "INSERT INTO users (username, full_name, email, password_hash, created_at) VALUES (?, ?, ?, ?, NOW())";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             insertSeedUser(stmt, "owner", "Project Owner", "owner@smartdiary.local");
             insertSeedUser(stmt, "participant1", "Default Participant 1", "p1@smartdiary.local");
             insertSeedUser(stmt, "participant2", "Default Participant 2", "p2@smartdiary.local");
+        }
+    }
+
+    private static void backfillMissingUserPasswords(Connection connection) throws SQLException {
+        String selectSql = "SELECT user_id, username FROM users WHERE password_hash IS NULL OR password_hash = ''";
+        String updateSql = "UPDATE users SET password_hash = ? WHERE user_id = ?";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSql);
+             PreparedStatement update = connection.prepareStatement(updateSql)) {
+
+            while (rs.next()) {
+                update.setString(1, PasswordUtil.hash("password"));
+                update.setInt(2, rs.getInt("user_id"));
+                update.executeUpdate();
+            }
         }
     }
 
@@ -345,6 +366,7 @@ public final class DatabaseMigrationTool {
         stmt.setString(1, username);
         stmt.setString(2, fullName);
         stmt.setString(3, email);
+        stmt.setString(4, PasswordUtil.hash("password"));
         stmt.executeUpdate();
     }
 

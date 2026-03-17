@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class Event {
     private int id;
+    private int userId;
     private Integer recurrenceId;
     private String title;
     private LocalDateTime startTime;
@@ -15,13 +16,26 @@ public class Event {
     public Event(int id, String title, LocalDateTime startTime,
                  LocalDateTime endTime, int priority,
                  String description, String location) {
-        this(id, null, title, startTime, endTime, priority, description, location);
+        this(id, 1, null, title, startTime, endTime, priority, description, location);
+    }
+
+    public Event(int id, int userId, String title, LocalDateTime startTime,
+                 LocalDateTime endTime, int priority,
+                 String description, String location) {
+        this(id, userId, null, title, startTime, endTime, priority, description, location);
     }
 
     public Event(int id, Integer recurrenceId, String title, LocalDateTime startTime,
                  LocalDateTime endTime, int priority,
                  String description, String location) {
+        this(id, 1, recurrenceId, title, startTime, endTime, priority, description, location);
+    }
+
+    public Event(int id, int userId, Integer recurrenceId, String title, LocalDateTime startTime,
+                 LocalDateTime endTime, int priority,
+                 String description, String location) {
         this.id = id;
+        this.userId = userId;
         this.recurrenceId = recurrenceId;
         this.title = title;
         this.startTime = startTime;
@@ -34,6 +48,9 @@ public class Event {
 
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
+
+    public int getUserId() { return userId; }
+    public void setUserId(int userId) { this.userId = userId; }
 
     public Integer getRecurrenceId() { return recurrenceId; }
     public void setRecurrenceId(Integer recurrenceId) { this.recurrenceId = recurrenceId; }

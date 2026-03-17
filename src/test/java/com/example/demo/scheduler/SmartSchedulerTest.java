@@ -56,6 +56,18 @@ class SmartSchedulerTest {
         assertTrue(!overlaps);
     }
 
+    @Test
+    void fixedParticipantConflictFallsBackToAlternatives() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        Event existing = new Event(1, 99, "Participant Busy", date.atTime(9, 0), date.atTime(10, 0), 1, "", "");
+        Event incoming = new Event(2, 1, "Organizer Event", date.atTime(9, 0), date.atTime(10, 0), 5, "", "");
+
+        SchedulingDecision decision = scheduler.decide(incoming, List.of(existing), event -> event.getUserId() == 1);
+
+        assertEquals(SchedulingDecisionType.SUGGEST_ALTERNATIVES, decision.getType());
+        assertFalse(decision.getAlternatives().isEmpty());
+    }
+
     private Event event(int id, String title, LocalDateTime start, LocalDateTime end, int priority) {
         return new Event(id, title, start, end, priority, "", "");
     }

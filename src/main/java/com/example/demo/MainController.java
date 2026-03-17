@@ -38,6 +38,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -47,6 +48,7 @@ public class MainController implements Initializable {
 
     @FXML private GridPane calendarGrid;
     @FXML private Label currentMonthLabel;
+    @FXML private Label currentUserLabel;
     @FXML private TextField titleField;
     @FXML private DatePicker datePicker;
     @FXML private ComboBox<String> startTimeCombo;
@@ -68,12 +70,18 @@ public class MainController implements Initializable {
     private List<Event> eventsList;
     private DatabaseManager dbManager;
     private SmartScheduler smartScheduler;
+    private User currentUser;
 
     private List<User> allUsers;
     private List<User> selectedParticipants;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        currentUser = SessionManager.getCurrentUser();
+        if (currentUser == null) {
+            throw new IllegalStateException("No logged in user. Please log in first.");
+        }
+
         currentYearMonth = YearMonth.now();
         selectedDate = LocalDate.now();
         eventsList = new ArrayList<>();
@@ -84,15 +92,11 @@ public class MainController implements Initializable {
         dbManager = new DatabaseManager();
         try {
             dbManager.connect();
-            eventsList = dbManager.getAllEvents();
-            allUsers = dbManager.getAllUsers();
-            if (allUsers.isEmpty()) {
-                dbManager.ensureDefaultUsersIfMissing();
-                allUsers = dbManager.getAllUsers();
-            }
+            dbManager.ensureDefaultUsersIfMissing();
+            reloadCurrentUserData();
         } catch (SQLException | RuntimeException e) {
             showAlert("Database connection error: " + e.getMessage(), Alert.AlertType.ERROR);
-            e.printStackTrace();
+            throw new IllegalStateException("Failed to initialize main view", e);
         }
 
         initializeTimeComboBoxes();
@@ -100,6 +104,7 @@ public class MainController implements Initializable {
         initializeParticipantsCombo();
         priorityCombo.setValue("Medium (3)");
         datePicker.setValue(LocalDate.now());
+        currentUserLabel.setText("Signed in: " + currentUser.getFullName() + " (" + currentUser.getUsername() + ")");
 
         eventsListView.setPlaceholder(new Label("No events for selected date"));
         eventsListView.setCellFactory(list -> new ListCell<>() {
@@ -111,13 +116,15 @@ public class MainController implements Initializable {
                 } else {
                     String stars = "*".repeat(Math.max(1, item.getPriority()));
                     String recurringMarker = item.getRecurrenceId() == null ? "" : " [Recurring]";
+                    String ownershipMarker = item.getUserId() == currentUser.getUserId() ? "" : " [Participant]";
                     setText(String.format(
-                            "%s %s - %s | %s%s",
+                            "%s %s - %s | %s%s%s",
                             stars,
                             item.getStartTime().toLocalTime(),
                             item.getEndTime().toLocalTime(),
                             item.getTitle(),
-                            recurringMarker
+                            recurringMarker,
+                            ownershipMarker
                     ));
                 }
             }
@@ -125,6 +132,13 @@ public class MainController implements Initializable {
 
         updateCalendarView();
         selectDate(LocalDate.now());
+    }
+
+    private void reloadCurrentUserData() {
+        eventsList = dbManager.getCalendarEventsForUser(currentUser.getUserId());
+        allUsers = dbManager.getAllUsers().stream()
+                .filter(user -> user.getUserId() != currentUser.getUserId())
+                .toList();
     }
 
     private void initializeParticipantsCombo() {
@@ -138,7 +152,7 @@ public class MainController implements Initializable {
         }
 
         participantsCombo.setItems(participantNames);
-        participantsCombo.setPromptText(allUsers.isEmpty() ? "No participants found in database" : "Choose participant");
+        participantsCombo.setPromptText(allUsers.isEmpty() ? "No other participants found" : "Choose participant");
     }
 
     private String formatUserOption(User user) {
@@ -335,7 +349,6 @@ public class MainController implements Initializable {
 
         } catch (Exception e) {
             showAlert("Error: " + e.getMessage(), Alert.AlertType.ERROR);
-            e.printStackTrace();
         }
     }
 
@@ -360,6 +373,7 @@ public class MainController implements Initializable {
 
         return new Event(
                 0,
+                currentUser.getUserId(),
                 titleField.getText().trim(),
                 LocalDateTime.of(date, startTime),
                 LocalDateTime.of(date, endTime),
@@ -371,7 +385,11 @@ public class MainController implements Initializable {
 
     private void addSingleEvent(Event newEvent) {
         if (checkAvailabilityCheck != null && checkAvailabilityCheck.isSelected()) {
-            SchedulingDecision decision = smartScheduler.decide(newEvent, eventsList);
+            SchedulingDecision decision = smartScheduler.decide(
+                    newEvent,
+                    loadSchedulingScopeEvents(),
+                    event -> event.getUserId() == currentUser.getUserId()
+            );
             if (!handleDecision(newEvent, decision)) {
                 return;
             }
@@ -382,11 +400,8 @@ public class MainController implements Initializable {
                 dbManager.addParticipant(newEvent.getId(), participant.getUserId(), false);
             }
 
-            eventsList.add(newEvent);
+            afterScheduleMutation(newEvent.getStartTime().toLocalDate());
             showAlert("Event added successfully.", Alert.AlertType.INFORMATION);
-            clearForm();
-            updateCalendarView();
-            updateEventsList(newEvent.getStartTime().toLocalDate());
         } else {
             showAlert("Failed to save event.", Alert.AlertType.ERROR);
         }
@@ -397,7 +412,7 @@ public class MainController implements Initializable {
         List<Event> occurrences = series.buildOccurrences(resolveRecurringPreviewEnd(series));
 
         if (checkAvailabilityCheck != null && checkAvailabilityCheck.isSelected()
-                && !recurringSeriesFitsWithoutConflicts(occurrences)) {
+                && !recurringSeriesFitsWithoutConflicts(occurrences, loadSchedulingScopeEvents())) {
             return;
         }
 
@@ -407,11 +422,8 @@ public class MainController implements Initializable {
             return;
         }
 
-        eventsList = dbManager.getAllEvents();
+        afterScheduleMutation(baseEvent.getStartTime().toLocalDate());
         showAlert("Recurring event created. " + insertedCount + " occurrences added.", Alert.AlertType.INFORMATION);
-        clearForm();
-        updateCalendarView();
-        updateEventsList(baseEvent.getStartTime().toLocalDate());
     }
 
     private RecurringEventSeries buildRecurringSeries(Event baseEvent) {
@@ -419,6 +431,7 @@ public class MainController implements Initializable {
         LocalDateTime untilDate = resolveRepeatUntil(baseEvent.getStartTime());
         return new RecurringEventSeries(
                 0,
+                currentUser.getUserId(),
                 baseEvent.getTitle(),
                 baseEvent.getStartTime(),
                 baseEvent.getEndTime(),
@@ -467,10 +480,14 @@ public class MainController implements Initializable {
         return previewEnd.plusMonths(12);
     }
 
-    private boolean recurringSeriesFitsWithoutConflicts(List<Event> occurrences) {
-        List<Event> workingSchedule = new ArrayList<>(eventsList);
+    private boolean recurringSeriesFitsWithoutConflicts(List<Event> occurrences, List<Event> baseSchedule) {
+        List<Event> workingSchedule = new ArrayList<>(baseSchedule);
         for (Event occurrence : occurrences) {
-            SchedulingDecision decision = smartScheduler.decide(occurrence, workingSchedule);
+            SchedulingDecision decision = smartScheduler.decide(
+                    occurrence,
+                    workingSchedule,
+                    event -> event.getUserId() == currentUser.getUserId()
+            );
             if (decision.getType() != SchedulingDecisionType.NO_CONFLICT) {
                 showAlert(
                         "Recurring event conflicts on "
@@ -571,6 +588,23 @@ public class MainController implements Initializable {
         }
     }
 
+    private List<Event> loadSchedulingScopeEvents() {
+        LinkedHashSet<Integer> userIds = new LinkedHashSet<>();
+        userIds.add(currentUser.getUserId());
+        for (User participant : selectedParticipants) {
+            userIds.add(participant.getUserId());
+        }
+        return dbManager.getCalendarEventsForUsers(new ArrayList<>(userIds));
+    }
+
+    private void afterScheduleMutation(LocalDate focusDate) {
+        reloadCurrentUserData();
+        initializeParticipantsCombo();
+        clearForm();
+        updateCalendarView();
+        selectDate(focusDate);
+    }
+
     private String buildShiftMessage(List<EventShift> shifts) {
         StringBuilder sb = new StringBuilder();
         for (EventShift shift : shifts) {
@@ -620,6 +654,11 @@ public class MainController implements Initializable {
             return;
         }
 
+        if (selected.getUserId() != currentUser.getUserId()) {
+            showAlert("Only the event owner can delete this event.", Alert.AlertType.WARNING);
+            return;
+        }
+
         if (selected.getRecurrenceId() != null) {
             Alert confirmRecurring = new Alert(Alert.AlertType.CONFIRMATION);
             confirmRecurring.setTitle("Delete recurring event");
@@ -631,9 +670,7 @@ public class MainController implements Initializable {
             }
 
             if (dbManager.deleteRecurringSeries(selected.getRecurrenceId())) {
-                eventsList = dbManager.getAllEvents();
-                updateCalendarView();
-                updateEventsList(selectedDate);
+                afterScheduleMutation(selectedDate);
                 showAlert("Recurring series deleted.", Alert.AlertType.INFORMATION);
             } else {
                 showAlert("Failed to delete recurring series.", Alert.AlertType.ERROR);
@@ -651,13 +688,19 @@ public class MainController implements Initializable {
         }
 
         if (dbManager.deleteEvent(selected.getId())) {
-            eventsList.removeIf(e -> e.getId() == selected.getId());
-            updateCalendarView();
-            updateEventsList(selectedDate);
+            afterScheduleMutation(selectedDate);
             showAlert("Event deleted.", Alert.AlertType.INFORMATION);
         } else {
             showAlert("Failed to delete event from database.", Alert.AlertType.ERROR);
         }
+    }
+
+    @FXML
+    private void logout() {
+        if (dbManager != null) {
+            dbManager.disconnect();
+        }
+        SmartCalenderApp.showLoginView();
     }
 
     private void clearForm() {

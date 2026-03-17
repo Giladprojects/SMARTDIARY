@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import com.example.demo.database.DatabaseManager;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -48,6 +49,11 @@ class MainViewSmokeTest {
         System.setProperty(DB_PROPERTY, testDb.toString());
 
         try {
+            DatabaseManager manager = new DatabaseManager();
+            manager.connect();
+            SessionManager.setCurrentUser(manager.getAllUsers().get(0));
+            manager.disconnect();
+
             CountDownLatch latch = new CountDownLatch(1);
             AtomicReference<Throwable> errorRef = new AtomicReference<>();
             AtomicReference<FXMLLoader> loaderRef = new AtomicReference<>();
@@ -86,6 +92,7 @@ class MainViewSmokeTest {
             assertEquals(5, priorityCombo.getItems().size(), "Expected all priority levels to be available");
             assertEquals(4, recurrenceCombo.getItems().size(), "Expected recurring options to be available");
         } finally {
+            SessionManager.clear();
             restoreProperty(previous);
         }
     }

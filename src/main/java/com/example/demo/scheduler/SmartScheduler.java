@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 public class SmartScheduler {
 
@@ -34,6 +35,10 @@ public class SmartScheduler {
             .thenComparingInt(Event::getPriority);
 
     public SchedulingDecision decide(Event newEvent, List<Event> allEvents) {
+        return decide(newEvent, allEvents, ignored -> true);
+    }
+
+    public SchedulingDecision decide(Event newEvent, List<Event> allEvents, Predicate<Event> canShift) {
         EventIndex index = buildIndex(allEvents);
         List<Event> conflicts = findConflicts(newEvent, index);
         if (conflicts.isEmpty()) {
@@ -51,7 +56,7 @@ public class SmartScheduler {
                 .orElse(1);
 
         if (newEvent.getPriority() > maxConflictPriority) {
-            List<EventShift> shifts = proposeShifts(newEvent, allEvents, conflicts);
+            List<EventShift> shifts = proposeShifts(newEvent, allEvents, conflicts, canShift);
             if (shifts.size() == conflicts.size()) {
                 return new SchedulingDecision(
                         SchedulingDecisionType.SHIFT_CONFLICTING_EVENTS,
@@ -122,7 +127,18 @@ public class SmartScheduler {
         return conflicts;
     }
 
-    private List<EventShift> proposeShifts(Event newEvent, List<Event> allEvents, List<Event> conflicts) {
+    private List<EventShift> proposeShifts(
+            Event newEvent,
+            List<Event> allEvents,
+            List<Event> conflicts,
+            Predicate<Event> canShift
+    ) {
+        for (Event conflict : conflicts) {
+            if (!canShift.test(conflict)) {
+                return List.of();
+            }
+        }
+
         List<EventShift> shifts = new ArrayList<>();
         List<Event> fixedEvents = new ArrayList<>(allEvents);
         fixedEvents.removeAll(conflicts);
