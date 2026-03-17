@@ -89,7 +89,7 @@ class MainViewSmokeTest {
             ComboBox<?> priorityCombo = (ComboBox<?>) namespace.get("priorityCombo");
             ComboBox<?> recurrenceCombo = (ComboBox<?>) namespace.get("recurrenceCombo");
             assertTrue(!participantsCombo.getItems().isEmpty(), "Expected participants to be loaded");
-            assertEquals(5, priorityCombo.getItems().size(), "Expected all priority levels to be available");
+            assertEquals(6, priorityCombo.getItems().size(), "Expected all priority levels to be available");
             assertEquals(4, recurrenceCombo.getItems().size(), "Expected recurring options to be available");
         } finally {
             SessionManager.clear();

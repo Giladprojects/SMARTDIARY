@@ -59,13 +59,26 @@ class SmartSchedulerTest {
     @Test
     void fixedParticipantConflictFallsBackToAlternatives() {
         LocalDate date = LocalDate.of(2026, 3, 10);
-        Event existing = new Event(1, 99, "Participant Busy", date.atTime(9, 0), date.atTime(10, 0), 1, "", "");
+        Event existing = new Event(1, 99, "Participant Busy", date.atTime(9, 0), date.atTime(10, 0), Event.FIXED_PRIORITY, "", "");
         Event incoming = new Event(2, 1, "Organizer Event", date.atTime(9, 0), date.atTime(10, 0), 5, "", "");
 
         SchedulingDecision decision = scheduler.decide(incoming, List.of(existing), event -> event.getUserId() == 1);
 
         assertEquals(SchedulingDecisionType.SUGGEST_ALTERNATIVES, decision.getType());
         assertFalse(decision.getAlternatives().isEmpty());
+        assertTrue(decision.getExplanation().contains("fixed events"));
+    }
+
+    @Test
+    void fixedIncomingEventWithFixedConflictBecomesHardConflict() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        Event existing = new Event(1, "Locked Existing", date.atTime(9, 0), date.atTime(10, 0), Event.FIXED_PRIORITY, "", "");
+        Event incoming = new Event(2, "Locked Incoming", date.atTime(9, 0), date.atTime(10, 0), Event.FIXED_PRIORITY, "", "");
+
+        SchedulingDecision decision = scheduler.decide(incoming, List.of(existing));
+
+        assertEquals(SchedulingDecisionType.HARD_CONFLICT, decision.getType());
+        assertTrue(decision.getExplanation().contains("cannot be moved automatically"));
     }
 
     private Event event(int id, String title, LocalDateTime start, LocalDateTime end, int priority) {

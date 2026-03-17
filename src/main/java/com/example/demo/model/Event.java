@@ -3,6 +3,8 @@ package com.example.demo.model;
 import java.time.LocalDateTime;
 
 public class Event {
+    public static final int FIXED_PRIORITY = 6;
+
     private int id;
     private int userId;
     private Integer recurrenceId;
@@ -66,6 +68,8 @@ public class Event {
 
     public int getPriority() { return priority; }
     public void setPriority(int priority) { this.priority = priority; }
+
+    public boolean isImmovable() { return priority == FIXED_PRIORITY; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

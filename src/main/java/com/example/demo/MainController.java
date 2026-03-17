@@ -117,14 +117,16 @@ public class MainController implements Initializable {
                     String stars = "*".repeat(Math.max(1, item.getPriority()));
                     String recurringMarker = item.getRecurrenceId() == null ? "" : " [Recurring]";
                     String ownershipMarker = item.getUserId() == currentUser.getUserId() ? "" : " [Participant]";
+                    String fixedMarker = item.isImmovable() ? " [Fixed]" : "";
                     setText(String.format(
-                            "%s %s - %s | %s%s%s",
+                            "%s %s - %s | %s%s%s%s",
                             stars,
                             item.getStartTime().toLocalTime(),
                             item.getEndTime().toLocalTime(),
                             item.getTitle(),
                             recurringMarker,
-                            ownershipMarker
+                            ownershipMarker,
+                            fixedMarker
                     ));
                 }
             }
@@ -185,6 +187,7 @@ public class MainController implements Initializable {
         endTimeCombo.setValue("10:00");
 
         priorityCombo.setItems(FXCollections.observableArrayList(
+                "Fixed (Not movable) (6)",
                 "Highest (5)",
                 "High (4)",
                 "Medium (3)",
@@ -525,8 +528,8 @@ public class MainController implements Initializable {
         if (decision.getType() == SchedulingDecisionType.SHIFT_CONFLICTING_EVENTS) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
             alert.setTitle("Smart scheduling suggestion");
-            alert.setHeaderText("Conflicts found with lower-priority events.");
-            alert.setContentText(buildShiftMessage(decision.getShifts()));
+            alert.setHeaderText(decision.getExplanation());
+            alert.setContentText(buildShiftMessage(decision));
 
             ButtonType apply = new ButtonType("Apply smart shift");
             ButtonType keep = new ButtonType("Keep new event only");
@@ -552,7 +555,7 @@ public class MainController implements Initializable {
 
             ChoiceDialog<String> choiceDialog = new ChoiceDialog<>(options.get(0), options);
             choiceDialog.setTitle("Smart scheduling suggestion");
-            choiceDialog.setHeaderText("Conflicts found. Choose preferred action.");
+            choiceDialog.setHeaderText(decision.getExplanation());
             choiceDialog.setContentText("Suggested slots:");
 
             Optional<String> selected = choiceDialog.showAndWait();
@@ -570,8 +573,10 @@ public class MainController implements Initializable {
 
         Alert hardConflict = new Alert(Alert.AlertType.WARNING);
         hardConflict.setTitle("Hard conflict");
-        hardConflict.setHeaderText("No automatic resolution found.");
-        hardConflict.setContentText("Add the event anyway?");
+        hardConflict.setHeaderText(decision.getExplanation());
+        hardConflict.setContentText(newEvent.isImmovable()
+                ? "This event is fixed. Add it anyway and keep the conflict?"
+                : "Add the event anyway?");
 
         ButtonType addAnyway = new ButtonType("Add anyway");
         ButtonType cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -605,8 +610,9 @@ public class MainController implements Initializable {
         selectDate(focusDate);
     }
 
-    private String buildShiftMessage(List<EventShift> shifts) {
-        StringBuilder sb = new StringBuilder();
+    private String buildShiftMessage(SchedulingDecision decision) {
+        StringBuilder sb = new StringBuilder(decision.getExplanation()).append("\n\n");
+        List<EventShift> shifts = decision.getShifts();
         for (EventShift shift : shifts) {
             sb.append("* ")
                     .append(shift.getEvent().getTitle())
@@ -723,6 +729,7 @@ public class MainController implements Initializable {
         if (text == null) {
             return 3;
         }
+        if (text.contains("(6)")) return Event.FIXED_PRIORITY;
         if (text.contains("(5)")) return 5;
         if (text.contains("(4)")) return 4;
         if (text.contains("(3)")) return 3;

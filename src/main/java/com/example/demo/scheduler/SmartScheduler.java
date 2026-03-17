@@ -54,8 +54,9 @@ public class SmartScheduler {
                 .map(Event::getPriority)
                 .max(Integer::compareTo)
                 .orElse(1);
+        boolean hasImmovableConflicts = conflicts.stream().anyMatch(event -> !canMove(event, canShift));
 
-        if (newEvent.getPriority() > maxConflictPriority) {
+        if (newEvent.getPriority() > maxConflictPriority && !hasImmovableConflicts) {
             List<EventShift> shifts = proposeShifts(newEvent, allEvents, conflicts, canShift);
             if (shifts.size() == conflicts.size()) {
                 return new SchedulingDecision(
@@ -67,12 +68,28 @@ public class SmartScheduler {
             }
         }
 
-        List<TimeSlot> alternatives = findAlternativeSlots(newEvent, index);
-        if (!alternatives.isEmpty()) {
+        if (!newEvent.isImmovable()) {
+            List<TimeSlot> alternatives = findAlternativeSlots(newEvent, index);
+            if (!alternatives.isEmpty()) {
+                String explanation = hasImmovableConflicts
+                        ? "Conflicts found with fixed events that cannot be moved. Recommended to move the new event."
+                        : "Conflicts found. Recommended to move the new event to an available slot.";
+                return new SchedulingDecision(
+                        SchedulingDecisionType.SUGGEST_ALTERNATIVES,
+                        explanation,
+                        alternatives,
+                        List.of()
+                );
+            }
+        }
+
+        if (hasImmovableConflicts) {
             return new SchedulingDecision(
-                    SchedulingDecisionType.SUGGEST_ALTERNATIVES,
-                    "Conflicts found. Recommended to move the new event to an available slot.",
-                    alternatives,
+                    SchedulingDecisionType.HARD_CONFLICT,
+                    newEvent.isImmovable()
+                            ? "Conflicts found with fixed events. This event is also fixed and cannot be moved automatically."
+                            : "Conflicts found with fixed events and no good automatic alternative was detected.",
+                    List.of(),
                     List.of()
             );
         }
@@ -134,7 +151,7 @@ public class SmartScheduler {
             Predicate<Event> canShift
     ) {
         for (Event conflict : conflicts) {
-            if (!canShift.test(conflict)) {
+            if (!canMove(conflict, canShift)) {
                 return List.of();
             }
         }
@@ -164,6 +181,7 @@ public class SmartScheduler {
 
             Event shiftedCopy = new Event(
                     conflict.getId(),
+                    conflict.getUserId(),
                     conflict.getTitle(),
                     slot.getStart(),
                     slot.getEnd(),
@@ -175,6 +193,10 @@ public class SmartScheduler {
         }
 
         return shifts;
+    }
+
+    private boolean canMove(Event event, Predicate<Event> canShift) {
+        return !event.isImmovable() && canShift.test(event);
     }
 
     private List<TimeSlot> findAlternativeSlots(Event newEvent, EventIndex index) {
