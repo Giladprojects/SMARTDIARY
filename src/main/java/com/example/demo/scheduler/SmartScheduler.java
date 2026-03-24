@@ -20,6 +20,7 @@ public class SmartScheduler {
 
     private static final int STEP_MINUTES = 30;
     private static final int MAX_ALTERNATIVES = 3;
+    private static final int NEARBY_DAYS_AHEAD = 2;
     private static final Comparator<Event> BY_START = Comparator
             .comparing(Event::getStartTime)
             .thenComparing(Event::getEndTime)
@@ -205,12 +206,35 @@ public class SmartScheduler {
     private List<TimeSlot> findAlternativeSlots(Event newEvent, EventIndex index) {
         List<TimeSlot> alternatives = new ArrayList<>();
         Duration duration = Duration.between(newEvent.getStartTime(), newEvent.getEndTime());
-        LocalDate date = newEvent.getStartTime().toLocalDate();
+        LocalDate requestedDate = newEvent.getStartTime().toLocalDate();
         LocalDateTime requestedStart = newEvent.getStartTime();
-        LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
 
+        for (int dayOffset = 0; dayOffset <= NEARBY_DAYS_AHEAD; dayOffset++) {
+            collectFreeSlotsForDate(requestedDate.plusDays(dayOffset), duration, index, alternatives);
+        }
+
+        alternatives.sort(Comparator.<TimeSlot>comparingLong(slot ->
+                preferencePenalty(newEvent.getSoftTimePreference(), slot.getStart()))
+                .thenComparingLong(slot ->
+                        Math.abs(Duration.between(requestedDate.atStartOfDay(), slot.getStart().toLocalDate().atStartOfDay()).toDays()))
+                .thenComparingLong(slot -> timeOfDayDistanceMinutes(requestedStart, slot.getStart()))
+                .thenComparing(TimeSlot::getStart));
+
+        if (alternatives.size() > MAX_ALTERNATIVES) {
+            return alternatives.subList(0, MAX_ALTERNATIVES);
+        }
+        return alternatives;
+    }
+
+    private void collectFreeSlotsForDate(
+            LocalDate date,
+            Duration duration,
+            EventIndex index,
+            List<TimeSlot> alternatives
+    ) {
+        LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
         for (LocalDateTime candidateStart = date.atStartOfDay();
-             candidateStart.plus(duration).isBefore(dayEnd) || candidateStart.plus(duration).isEqual(dayEnd);
+             !candidateStart.plus(duration).isAfter(dayEnd);
              candidateStart = candidateStart.plusMinutes(STEP_MINUTES)) {
 
             LocalDateTime candidateEnd = candidateStart.plus(duration);
@@ -218,16 +242,10 @@ public class SmartScheduler {
                 alternatives.add(new TimeSlot(candidateStart, candidateEnd));
             }
         }
+    }
 
-        alternatives.sort(Comparator.<TimeSlot>comparingLong(slot ->
-                preferencePenalty(newEvent.getSoftTimePreference(), slot.getStart()))
-                .thenComparingLong(slot ->
-                        Math.abs(Duration.between(requestedStart, slot.getStart()).toMinutes())));
-
-        if (alternatives.size() > MAX_ALTERNATIVES) {
-            return alternatives.subList(0, MAX_ALTERNATIVES);
-        }
-        return alternatives;
+    private long timeOfDayDistanceMinutes(LocalDateTime requestedStart, LocalDateTime candidateStart) {
+        return Math.abs(Duration.between(requestedStart.toLocalTime(), candidateStart.toLocalTime()).toMinutes());
     }
 
     private TimeSlot findBestFreeSlot(

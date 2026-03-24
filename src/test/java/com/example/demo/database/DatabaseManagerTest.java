@@ -74,6 +74,72 @@ class DatabaseManagerTest {
     }
 
     @Test
+    void connectDoesNotRewriteExistingPlainTextPasswords() throws Exception {
+        assertTrue(Files.exists(PROJECT_DB), "Expected test database file to exist");
+
+        Path testDb = tempDir.resolve("DATABASEFORJAVAFX_tmp_build.accdb");
+        Files.copy(PROJECT_DB, testDb, StandardCopyOption.REPLACE_EXISTING);
+
+        String previous = System.getProperty(DB_PROPERTY);
+        System.setProperty(DB_PROPERTY, testDb.toString());
+
+        DatabaseManager manager = new DatabaseManager();
+        try {
+            manager.connect();
+            User created = manager.registerUser("legacy_user", "Legacy User", "legacy@test.local", "secret1");
+            assertNotNull(created);
+            manager.disconnect();
+
+            try (var connection = java.sql.DriverManager.getConnection("jdbc:ucanaccess://" + testDb);
+                 var stmt = connection.prepareStatement("UPDATE users SET password_hash = ? WHERE user_id = ?")) {
+                stmt.setString(1, "y");
+                stmt.setInt(2, created.getUserId());
+                stmt.executeUpdate();
+            }
+
+            manager.connect();
+            User authenticated = manager.authenticateUser("legacy_user", "y");
+            assertNotNull(authenticated, "Expected existing plain-text password value to remain unchanged");
+            assertEquals("legacy_user", authenticated.getUsername());
+        } finally {
+            manager.disconnect();
+            restoreProperty(previous);
+        }
+    }
+
+    @Test
+    void authenticateUserAcceptsLegacyMalformedPasswordWithDefaultPassword() throws Exception {
+        assertTrue(Files.exists(PROJECT_DB), "Expected test database file to exist");
+
+        Path testDb = tempDir.resolve("DATABASEFORJAVAFX_tmp_build.accdb");
+        Files.copy(PROJECT_DB, testDb, StandardCopyOption.REPLACE_EXISTING);
+
+        String previous = System.getProperty(DB_PROPERTY);
+        System.setProperty(DB_PROPERTY, testDb.toString());
+
+        DatabaseManager manager = new DatabaseManager();
+        try {
+            manager.connect();
+            User created = manager.registerUser("legacy_fallback", "Legacy Fallback", "legacy2@test.local", "secret1");
+            assertNotNull(created);
+
+            try (var connection = java.sql.DriverManager.getConnection("jdbc:ucanaccess://" + testDb);
+                 var stmt = connection.prepareStatement("UPDATE users SET password_hash = ? WHERE user_id = ?")) {
+                stmt.setString(1, "z");
+                stmt.setInt(2, created.getUserId());
+                stmt.executeUpdate();
+            }
+
+            User authenticated = manager.authenticateUser("legacy_fallback", "password");
+            assertNotNull(authenticated, "Expected fallback authentication for malformed legacy password value");
+            assertEquals("legacy_fallback", authenticated.getUsername());
+        } finally {
+            manager.disconnect();
+            restoreProperty(previous);
+        }
+    }
+
+    @Test
     void calendarEventsForUserIncludeOwnedAndParticipantEvents() throws Exception {
         assertTrue(Files.exists(PROJECT_DB), "Expected test database file to exist");
 

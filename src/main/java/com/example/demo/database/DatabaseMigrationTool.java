@@ -36,7 +36,6 @@ public final class DatabaseMigrationTool {
         ensureRecurringParticipantsTable(connection);
         ensureSchemaMigrationsTable(connection);
         seedUsers(connection);
-        backfillMissingUserPasswords(connection);
         markSchemaVersion(connection, "2026-03-12-smartdiary-recurring-events");
         markSchemaVersion(connection, "2026-03-24-smartdiary-soft-time-preference");
     }
@@ -324,22 +323,6 @@ public final class DatabaseMigrationTool {
             insertSeedUser(stmt, "owner", "Project Owner", "owner@smartdiary.local");
             insertSeedUser(stmt, "participant1", "Default Participant 1", "p1@smartdiary.local");
             insertSeedUser(stmt, "participant2", "Default Participant 2", "p2@smartdiary.local");
-        }
-    }
-
-    private static void backfillMissingUserPasswords(Connection connection) throws SQLException {
-        String selectSql = "SELECT user_id, username FROM users WHERE password_hash IS NULL OR password_hash = ''";
-        String updateSql = "UPDATE users SET password_hash = ? WHERE user_id = ?";
-
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(selectSql);
-             PreparedStatement update = connection.prepareStatement(updateSql)) {
-
-            while (rs.next()) {
-                update.setString(1, PasswordUtil.hash("password"));
-                update.setInt(2, rs.getInt("user_id"));
-                update.executeUpdate();
-            }
         }
     }
 

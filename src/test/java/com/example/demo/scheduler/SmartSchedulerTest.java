@@ -110,6 +110,19 @@ class SmartSchedulerTest {
         assertTrue(decision.getExplanation().contains("cannot be moved automatically"));
     }
 
+    @Test
+    void whenSameDayIsBlockedSchedulerSuggestsNearbyFutureDay() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        Event fullDayBlock = event(1, "Busy Day", date.atTime(0, 0), date.plusDays(1).atStartOfDay(), 3);
+        Event incoming = event(2, "New", date.atTime(9, 30), date.atTime(10, 30), 3);
+
+        SchedulingDecision decision = scheduler.decide(incoming, List.of(fullDayBlock));
+
+        assertEquals(SchedulingDecisionType.SUGGEST_ALTERNATIVES, decision.getType());
+        assertFalse(decision.getAlternatives().isEmpty());
+        assertEquals(LocalDateTime.of(2026, 3, 11, 9, 30), decision.getAlternatives().get(0).getStart());
+    }
+
     private Event event(int id, String title, LocalDateTime start, LocalDateTime end, int priority) {
         return new Event(id, title, start, end, priority, "", "");
     }

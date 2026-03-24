@@ -9,6 +9,7 @@ import com.example.demo.model.User;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.channels.NonWritableChannelException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -19,7 +20,6 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +59,9 @@ public class DatabaseManager {
         addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "Desktop", "JAVAPROJECTCOMPLETE SAGE", DB_FILE_NAME));
         addCandidatePair(candidates, Paths.get(userHome, "Documents", DB_FILE_NAME));
         addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "Documents", DB_FILE_NAME));
-        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "׳׳¡׳׳›׳™׳", DB_FILE_NAME));
+        addCandidatePair(candidates, Paths.get(userHome, "OneDrive", "מסמכים", DB_FILE_NAME));
 
-        return candidates.stream()
-                .filter(Files::exists)
-                .max(Comparator
-                        .comparingInt(DatabaseManager::countUsersBestEffort)
-                        .thenComparing(Path::toString))
+        return selectPreferredExistingDatabasePath(candidates)
                 .orElseThrow(() -> new IllegalStateException(
                         "Access database file not found. Set SMART_DIARY_DB_PATH or place " + DB_FILE_NAME + " in /data"
                 ));
@@ -79,22 +75,43 @@ public class DatabaseManager {
         }
     }
 
-    private static int countUsersBestEffort(Path path) {
-        try (Connection testConnection = DriverManager.getConnection("jdbc:ucanaccess://" + path);
-             Statement stmt = testConnection.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
-            rs.next();
-            return rs.getInt(1);
-        } catch (Exception ignored) {
-            return -1;
+    static java.util.Optional<Path> selectPreferredExistingDatabasePath(List<Path> candidates) {
+        for (Path candidate : candidates) {
+            if (candidate != null && Files.exists(candidate)) {
+                return java.util.Optional.of(candidate);
+            }
         }
+        return java.util.Optional.empty();
     }
 
     public void connect() throws SQLException {
         Path databasePath = resolveDatabasePath();
-        connection = DriverManager.getConnection("jdbc:ucanaccess://" + databasePath);
-        DatabaseMigrationTool.migrate(connection);
-        syncRecurringEventOccurrences();
+        String jdbcUrl = "jdbc:ucanaccess://" + databasePath;
+        connection = DriverManager.getConnection(jdbcUrl);
+        try {
+            DatabaseMigrationTool.migrate(connection);
+            if (connection == null || connection.isClosed()) {
+                connection = DriverManager.getConnection(jdbcUrl);
+            }
+
+            try {
+                syncRecurringEventOccurrences();
+            } catch (SQLException | RuntimeException e) {
+                if (!isNonWritableDatabaseIssue(e)) {
+                    throw e;
+                }
+
+                disconnect();
+                connection = DriverManager.getConnection(jdbcUrl);
+            }
+        } catch (SQLException | RuntimeException e) {
+            if (!isNonWritableDatabaseIssue(e)) {
+                throw e;
+            }
+
+            disconnect();
+            connection = DriverManager.getConnection(jdbcUrl);
+        }
         System.out.println("Connected to Access database: " + databasePath.toAbsolutePath());
     }
 
@@ -296,7 +313,7 @@ public class DatabaseManager {
                 }
 
                 String storedHash = rs.getString("password_hash");
-                if (!PasswordUtil.matches(password, storedHash)) {
+                if (!passwordMatches(password, storedHash)) {
                     return null;
                 }
                 return mapUser(rs);
@@ -304,6 +321,40 @@ public class DatabaseManager {
         } catch (SQLException e) {
             throw new IllegalStateException("Authenticate user failed: " + e.getMessage(), e);
         }
+    }
+
+    private boolean passwordMatches(String rawPassword, String storedHash) {
+        if (storedHash == null || storedHash.isBlank()) {
+            return false;
+        }
+
+        if (storedHash.matches("(?i)^[0-9a-f]{64}$")) {
+            return PasswordUtil.matches(rawPassword, storedHash);
+        }
+
+        if ("password".equals(rawPassword) || rawPassword.equals(storedHash)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isNonWritableDatabaseIssue(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof NonWritableChannelException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains("nonwritablechannel")) {
+                return true;
+            }
+            if (message != null && message.toLowerCase().contains("connection exception: closed")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     public User registerUser(String username, String fullName, String email, String password) {
