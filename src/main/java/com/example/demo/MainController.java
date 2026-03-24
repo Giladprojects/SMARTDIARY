@@ -3,6 +3,7 @@ package com.example.demo;
 import com.example.demo.database.DatabaseManager;
 import com.example.demo.model.Event;
 import com.example.demo.model.RecurringEventSeries;
+import com.example.demo.model.SoftTimePreference;
 import com.example.demo.model.User;
 import com.example.demo.scheduler.EventShift;
 import com.example.demo.scheduler.SchedulingDecision;
@@ -54,6 +55,7 @@ public class MainController implements Initializable {
     @FXML private ComboBox<String> startTimeCombo;
     @FXML private ComboBox<String> endTimeCombo;
     @FXML private ComboBox<String> priorityCombo;
+    @FXML private ComboBox<String> softTimePreferenceCombo;
     @FXML private ComboBox<String> recurrenceCombo;
     @FXML private ComboBox<String> repeatUntilCombo;
     @FXML private TextField repeatCountField;
@@ -100,6 +102,7 @@ public class MainController implements Initializable {
         }
 
         initializeTimeComboBoxes();
+        initializeSoftTimePreferenceCombo();
         initializeRecurrenceControls();
         initializeParticipantsCombo();
         priorityCombo.setValue("Medium (3)");
@@ -194,6 +197,20 @@ public class MainController implements Initializable {
                 "Low (2)",
                 "Lowest (1)"
         ));
+    }
+
+    private void initializeSoftTimePreferenceCombo() {
+        if (softTimePreferenceCombo == null) {
+            return;
+        }
+
+        softTimePreferenceCombo.setItems(FXCollections.observableArrayList(
+                "Any time",
+                "Morning",
+                "Afternoon",
+                "Evening"
+        ));
+        softTimePreferenceCombo.setValue("Any time");
     }
 
     private void initializeRecurrenceControls() {
@@ -382,7 +399,8 @@ public class MainController implements Initializable {
                 LocalDateTime.of(date, endTime),
                 getPriorityValue(priorityCombo.getValue()),
                 descriptionField.getText().trim(),
-                locationField.getText().trim()
+                locationField.getText().trim(),
+                mapSoftTimePreference(softTimePreferenceCombo == null ? null : softTimePreferenceCombo.getValue())
         );
     }
 
@@ -441,6 +459,7 @@ public class MainController implements Initializable {
                 baseEvent.getPriority(),
                 baseEvent.getDescription(),
                 baseEvent.getLocation(),
+                baseEvent.getSoftTimePreference(),
                 frequency,
                 untilDate
         );
@@ -517,6 +536,19 @@ public class MainController implements Initializable {
             case "Every week" -> RecurringEventSeries.WEEKLY;
             case "Every month" -> RecurringEventSeries.MONTHLY;
             default -> RecurringEventSeries.DAILY;
+        };
+    }
+
+    private SoftTimePreference mapSoftTimePreference(String value) {
+        if (value == null) {
+            return SoftTimePreference.ANY_TIME;
+        }
+
+        return switch (value) {
+            case "Morning" -> SoftTimePreference.MORNING;
+            case "Afternoon" -> SoftTimePreference.AFTERNOON;
+            case "Evening" -> SoftTimePreference.EVENING;
+            default -> SoftTimePreference.ANY_TIME;
         };
     }
 
@@ -714,6 +746,9 @@ public class MainController implements Initializable {
         descriptionField.clear();
         locationField.clear();
         priorityCombo.setValue("Medium (3)");
+        if (softTimePreferenceCombo != null) {
+            softTimePreferenceCombo.setValue("Any time");
+        }
         recurrenceCombo.setValue("Does not repeat");
         repeatUntilCombo.setValue("Forever");
         repeatCountField.clear();

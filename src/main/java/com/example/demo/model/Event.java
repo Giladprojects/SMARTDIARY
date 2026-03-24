@@ -14,28 +14,57 @@ public class Event {
     private int priority; // 1-5
     private String description;
     private String location;
+    private SoftTimePreference softTimePreference;
 
     public Event(int id, String title, LocalDateTime startTime,
                  LocalDateTime endTime, int priority,
                  String description, String location) {
-        this(id, 1, null, title, startTime, endTime, priority, description, location);
+        this(id, 1, null, title, startTime, endTime, priority, description, location, SoftTimePreference.ANY_TIME);
+    }
+
+    public Event(int id, String title, LocalDateTime startTime,
+                 LocalDateTime endTime, int priority,
+                 String description, String location,
+                 SoftTimePreference softTimePreference) {
+        this(id, 1, null, title, startTime, endTime, priority, description, location, softTimePreference);
     }
 
     public Event(int id, int userId, String title, LocalDateTime startTime,
                  LocalDateTime endTime, int priority,
                  String description, String location) {
-        this(id, userId, null, title, startTime, endTime, priority, description, location);
+        this(id, userId, null, title, startTime, endTime, priority, description, location, SoftTimePreference.ANY_TIME);
+    }
+
+    public Event(int id, int userId, String title, LocalDateTime startTime,
+                 LocalDateTime endTime, int priority,
+                 String description, String location,
+                 SoftTimePreference softTimePreference) {
+        this(id, userId, null, title, startTime, endTime, priority, description, location, softTimePreference);
     }
 
     public Event(int id, Integer recurrenceId, String title, LocalDateTime startTime,
                  LocalDateTime endTime, int priority,
                  String description, String location) {
-        this(id, 1, recurrenceId, title, startTime, endTime, priority, description, location);
+        this(id, 1, recurrenceId, title, startTime, endTime, priority, description, location, SoftTimePreference.ANY_TIME);
+    }
+
+    public Event(int id, Integer recurrenceId, String title, LocalDateTime startTime,
+                 LocalDateTime endTime, int priority,
+                 String description, String location,
+                 SoftTimePreference softTimePreference) {
+        this(id, 1, recurrenceId, title, startTime, endTime, priority, description, location, softTimePreference);
     }
 
     public Event(int id, int userId, Integer recurrenceId, String title, LocalDateTime startTime,
                  LocalDateTime endTime, int priority,
                  String description, String location) {
+        this(id, userId, recurrenceId, title, startTime, endTime, priority, description, location, SoftTimePreference.ANY_TIME);
+    }
+
+    public Event(int id, int userId, Integer recurrenceId, String title, LocalDateTime startTime,
+                 LocalDateTime endTime, int priority,
+                 String description, String location,
+                 SoftTimePreference softTimePreference) {
         this.id = id;
         this.userId = userId;
         this.recurrenceId = recurrenceId;
@@ -45,6 +74,7 @@ public class Event {
         this.priority = priority;
         this.description = description;
         this.location = location;
+        this.softTimePreference = softTimePreference == null ? SoftTimePreference.ANY_TIME : softTimePreference;
     }
 
 
@@ -76,6 +106,11 @@ public class Event {
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+
+    public SoftTimePreference getSoftTimePreference() { return softTimePreference; }
+    public void setSoftTimePreference(SoftTimePreference softTimePreference) {
+        this.softTimePreference = softTimePreference == null ? SoftTimePreference.ANY_TIME : softTimePreference;
+    }
 
     @Override
     public String toString() {

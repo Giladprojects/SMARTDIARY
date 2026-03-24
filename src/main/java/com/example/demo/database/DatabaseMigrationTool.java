@@ -38,6 +38,7 @@ public final class DatabaseMigrationTool {
         seedUsers(connection);
         backfillMissingUserPasswords(connection);
         markSchemaVersion(connection, "2026-03-12-smartdiary-recurring-events");
+        markSchemaVersion(connection, "2026-03-24-smartdiary-soft-time-preference");
     }
 
     private static void ensureIndexesBestEffort(Connection connection) {
@@ -83,6 +84,7 @@ public final class DatabaseMigrationTool {
                         priority INTEGER,
                         description MEMO,
                         location TEXT(255),
+                        soft_time_preference TEXT(30),
                         recurrence_id LONG,
                         created_at DATETIME
                     )
@@ -97,6 +99,7 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "events", "priority", "INTEGER");
         ensureColumn(connection, "events", "description", "MEMO");
         ensureColumn(connection, "events", "location", "TEXT(255)");
+        ensureColumn(connection, "events", "soft_time_preference", "TEXT(30)");
         ensureColumn(connection, "events", "recurrence_id", "LONG");
         ensureColumn(connection, "events", "created_at", "DATETIME");
     }
@@ -159,6 +162,7 @@ public final class DatabaseMigrationTool {
                         priority INTEGER,
                         description MEMO,
                         location TEXT(255),
+                        soft_time_preference TEXT(30),
                         frequency TEXT(20) NOT NULL,
                         until_date DATETIME,
                         created_at DATETIME
@@ -174,6 +178,7 @@ public final class DatabaseMigrationTool {
         ensureColumn(connection, "recurring_event_series", "priority", "INTEGER");
         ensureColumn(connection, "recurring_event_series", "description", "MEMO");
         ensureColumn(connection, "recurring_event_series", "location", "TEXT(255)");
+        ensureColumn(connection, "recurring_event_series", "soft_time_preference", "TEXT(30)");
         ensureColumn(connection, "recurring_event_series", "frequency", "TEXT(20)");
         ensureColumn(connection, "recurring_event_series", "until_date", "DATETIME");
         ensureColumn(connection, "recurring_event_series", "created_at", "DATETIME");

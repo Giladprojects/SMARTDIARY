@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560">
+  <rect width="1200" height="560" fill="#f8f4ee"/>
+  <text x="600" y="55" text-anchor="middle" font-family="David, Arial, sans-serif" font-size="34" fill="#2f3d3a">אילוץ זמן רך: חלונות זמן מועדפים</text>
+
+  <rect x="120" y="160" width="960" height="92" rx="46" fill="#ece6de"/>
+  <rect x="120" y="160" width="320" height="92" rx="46" fill="#f5d99d"/>
+  <rect x="440" y="160" width="320" height="92" fill="#cfe0ad"/>
+  <rect x="760" y="160" width="320" height="92" rx="46" fill="#b8d2dc"/>
+
+  <line x1="120" y1="285" x2="1080" y2="285" stroke="#8a8a8a" stroke-width="3"/>
+  <g font-family="David, Arial, sans-serif" font-size="20" fill="#585858">
+    <text x="120" y="320" text-anchor="middle">06:00</text>
+    <text x="280" y="320" text-anchor="middle">12:00</text>
+    <text x="600" y="320" text-anchor="middle">17:00</text>
+    <text x="920" y="320" text-anchor="middle">22:00</text>
+    <text x="1080" y="320" text-anchor="middle">24:00</text>
+  </g>
+
+  <g font-family="David, Arial, sans-serif" fill="#243333">
+    <text x="280" y="215" text-anchor="middle" font-size="28">בוקר</text>
+    <text x="600" y="215" text-anchor="middle" font-size="28">אחר הצהריים</text>
+    <text x="920" y="215" text-anchor="middle" font-size="28">ערב</text>
+  </g>
+
+  <g font-family="David, Arial, sans-serif" font-size="24" fill="#39423b">
+    <text x="600" y="395" text-anchor="middle">המערכת מנסה להעדיף חלופה בתוך החלון המבוקש, אך לא חוסמת שמירה אם אין חלופה מושלמת</text>
+  </g>
+
+  <g>
+    <rect x="210" y="430" width="240" height="50" rx="16" fill="#ffffff" stroke="#d0c2af"/>
+    <text x="330" y="462" text-anchor="middle" font-family="David, Arial, sans-serif" font-size="21" fill="#314341">Any Time</text>
+    <rect x="480" y="430" width="240" height="50" rx="16" fill="#ffffff" stroke="#d0c2af"/>
+    <text x="600" y="462" text-anchor="middle" font-family="David, Arial, sans-serif" font-size="21" fill="#314341">Morning / Afternoon / Evening</text>
+    <rect x="750" y="430" width="240" height="50" rx="16" fill="#ffffff" stroke="#d0c2af"/>
+    <text x="870" y="462" text-anchor="middle" font-family="David, Arial, sans-serif" font-size="21" fill="#314341">Soft Constraint בלבד</text>
+  </g>
+</svg>

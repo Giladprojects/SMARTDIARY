@@ -84,13 +84,16 @@ class MainViewSmokeTest {
             assertNotNull(namespace.get("calendarGrid"));
             assertNotNull(namespace.get("recurrenceCombo"));
             assertNotNull(namespace.get("repeatUntilCombo"));
+            assertNotNull(namespace.get("softTimePreferenceCombo"));
 
             ComboBox<?> participantsCombo = (ComboBox<?>) namespace.get("participantsCombo");
             ComboBox<?> priorityCombo = (ComboBox<?>) namespace.get("priorityCombo");
             ComboBox<?> recurrenceCombo = (ComboBox<?>) namespace.get("recurrenceCombo");
+            ComboBox<?> softTimePreferenceCombo = (ComboBox<?>) namespace.get("softTimePreferenceCombo");
             assertTrue(!participantsCombo.getItems().isEmpty(), "Expected participants to be loaded");
             assertEquals(6, priorityCombo.getItems().size(), "Expected all priority levels to be available");
             assertEquals(4, recurrenceCombo.getItems().size(), "Expected recurring options to be available");
+            assertEquals(4, softTimePreferenceCombo.getItems().size(), "Expected all soft time preference options to be available");
         } finally {
             SessionManager.clear();
             restoreProperty(previous);

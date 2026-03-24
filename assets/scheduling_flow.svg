@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1220" viewBox="0 0 1200 1220">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#7b7b7b" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="1220" fill="#f8f4ee"/>
+  <text x="600" y="58" text-anchor="middle" font-family="David, Arial, sans-serif" font-size="34" fill="#2f3d3a">תרשים זרימה של מנוע השיבוץ</text>
+
+  <g font-family="David, Arial, sans-serif" font-size="23" fill="#243333" filter="url(#shadow)">
+    <rect x="370" y="100" width="460" height="84" rx="20" fill="#23413f"/>
+    <text x="600" y="151" text-anchor="middle" fill="#fff">קבלת אירוע חדש ורשימת אירועים קיימת</text>
+
+    <rect x="365" y="245" width="470" height="90" rx="20" fill="#ffffff"/>
+    <text x="600" y="286" text-anchor="middle">איתור חפיפות רלוונטיות לפי יום ושעות</text>
+    <text x="600" y="316" text-anchor="middle">ואיסוף אילוצי עדיפות, קשיחות וזמן מועדף</text>
+
+    <polygon points="600,390 820,470 600,550 380,470" fill="#f7e4bf"/>
+    <text x="600" y="466" text-anchor="middle">האם קיימת חפיפה?</text>
+
+    <rect x="780" y="620" width="270" height="88" rx="18" fill="#dfeedd"/>
+    <text x="915" y="674" text-anchor="middle">אין קונפליקט</text>
+
+    <polygon points="600,620 840,710 600,800 360,710" fill="#eedfdb"/>
+    <text x="600" y="701" text-anchor="middle">האם האירוע החדש עדיף</text>
+    <text x="600" y="731" text-anchor="middle">וכל האירועים ניתנים להזזה?</text>
+
+    <rect x="135" y="865" width="330" height="100" rx="18" fill="#ffffff"/>
+    <text x="300" y="917" text-anchor="middle">חיפוש חלופות פנויות באותו יום</text>
+    <text x="300" y="947" text-anchor="middle">ודירוג לפי זמן מועדף רך</text>
+
+    <rect x="435" y="865" width="330" height="100" rx="18" fill="#ffffff"/>
+    <text x="600" y="917" text-anchor="middle">בניית תוכנית הזזה לאירועים חלשים יותר</text>
+    <text x="600" y="947" text-anchor="middle">תוך שמירה על חלון זמן מועדף אם אפשר</text>
+
+    <polygon points="300,1010 500,1085 300,1160 100,1085" fill="#f7e4bf"/>
+    <text x="300" y="1080" text-anchor="middle">נמצאו חלופות?</text>
+
+    <polygon points="900,1010 1100,1085 900,1160 700,1085" fill="#f7e4bf"/>
+    <text x="900" y="1080" text-anchor="middle">כל ההזזות הצליחו?</text>
+
+    <rect x="90" y="1110" width="270" height="72" rx="16" fill="#f4ebdb"/>
+    <text x="225" y="1155" text-anchor="middle">הצעת חלופות</text>
+
+    <rect x="770" y="1110" width="270" height="72" rx="16" fill="#e0ecde"/>
+    <text x="905" y="1155" text-anchor="middle">הזזת אירועים מתנגשים</text>
+
+    <rect x="430" y="1110" width="280" height="72" rx="16" fill="#efdada"/>
+    <text x="570" y="1155" text-anchor="middle">קונפליקט קשיח</text>
+  </g>
+
+  <g stroke="#7a837b" stroke-width="4" fill="none" stroke-linecap="round">
+    <line x1="600" y1="184" x2="600" y2="245"/>
+    <line x1="600" y1="335" x2="600" y2="390"/>
+    <line x1="820" y1="470" x2="915" y2="470"/>
+    <line x1="915" y1="470" x2="915" y2="620"/>
+    <line x1="600" y1="550" x2="600" y2="620"/>
+    <line x1="480" y1="710" x2="300" y2="865"/>
+    <line x1="720" y1="710" x2="600" y2="865"/>
+    <line x1="300" y1="965" x2="300" y2="1010"/>
+    <line x1="600" y1="965" x2="900" y2="1010"/>
+  </g>
+
+  <g font-family="David, Arial, sans-serif" font-size="20" fill="#5e5e5e">
+    <text x="845" y="455">לא</text>
+    <text x="620" y="585">כן</text>
+    <text x="255" y="1045">כן</text>
+    <text x="825" y="1045">כן</text>
+    <text x="455" y="1090">לא</text>
+  </g>
+</svg>

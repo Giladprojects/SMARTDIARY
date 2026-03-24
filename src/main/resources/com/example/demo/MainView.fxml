@@ -75,6 +75,11 @@
                 </VBox>
 
                 <VBox spacing="5">
+                    <Label text="Preferred Time (Soft):"/>
+                    <ComboBox fx:id="softTimePreferenceCombo" prefWidth="300"/>
+                </VBox>
+
+                <VBox spacing="5">
                     <Label text="Repeat:"/>
                     <ComboBox fx:id="recurrenceCombo" prefWidth="300"/>
                 </VBox>

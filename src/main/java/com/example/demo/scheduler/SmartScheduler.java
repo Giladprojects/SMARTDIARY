@@ -1,6 +1,7 @@
 package com.example.demo.scheduler;
 
 import com.example.demo.model.Event;
+import com.example.demo.model.SoftTimePreference;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -167,11 +168,12 @@ public class SmartScheduler {
 
         for (Event conflict : toShift) {
             Duration duration = Duration.between(conflict.getStartTime(), conflict.getEndTime());
-            TimeSlot slot = findFirstFreeSlot(
+            TimeSlot slot = findBestFreeSlot(
                     conflict.getStartTime().toLocalDate(),
                     newEvent.getEndTime(),
                     duration,
-                    fixedIndex
+                    fixedIndex,
+                    conflict.getSoftTimePreference()
             );
             if (slot == null) {
                 return List.of();
@@ -187,7 +189,8 @@ public class SmartScheduler {
                     slot.getEnd(),
                     conflict.getPriority(),
                     conflict.getDescription(),
-                    conflict.getLocation()
+                    conflict.getLocation(),
+                    conflict.getSoftTimePreference()
             );
             fixedIndex.add(shiftedCopy);
         }
@@ -216,8 +219,10 @@ public class SmartScheduler {
             }
         }
 
-        alternatives.sort(Comparator.comparingLong(slot ->
-                Math.abs(Duration.between(requestedStart, slot.getStart()).toMinutes())));
+        alternatives.sort(Comparator.<TimeSlot>comparingLong(slot ->
+                preferencePenalty(newEvent.getSoftTimePreference(), slot.getStart()))
+                .thenComparingLong(slot ->
+                        Math.abs(Duration.between(requestedStart, slot.getStart()).toMinutes())));
 
         if (alternatives.size() > MAX_ALTERNATIVES) {
             return alternatives.subList(0, MAX_ALTERNATIVES);
@@ -225,25 +230,35 @@ public class SmartScheduler {
         return alternatives;
     }
 
-    private TimeSlot findFirstFreeSlot(
+    private TimeSlot findBestFreeSlot(
             LocalDate date,
             LocalDateTime notBefore,
             Duration duration,
-            EventIndex index
+            EventIndex index,
+            SoftTimePreference preference
     ) {
         LocalDateTime cursor = roundUpToStep(notBefore);
         if (!cursor.toLocalDate().equals(date)) {
             cursor = date.atStartOfDay();
         }
 
+        TimeSlot bestPreferred = null;
+        TimeSlot bestFallback = null;
         while (cursor.toLocalDate().equals(date) && !cursor.plus(duration).toLocalTime().isAfter(LocalTime.MAX)) {
             LocalDateTime end = cursor.plus(duration);
             if (isFree(cursor, end, index)) {
-                return new TimeSlot(cursor, end);
+                TimeSlot candidate = new TimeSlot(cursor, end);
+                if (matchesPreference(preference, cursor)) {
+                    bestPreferred = candidate;
+                    break;
+                }
+                if (bestFallback == null) {
+                    bestFallback = candidate;
+                }
             }
             cursor = cursor.plusMinutes(STEP_MINUTES);
         }
-        return null;
+        return bestPreferred != null ? bestPreferred : bestFallback;
     }
 
     private LocalDateTime roundUpToStep(LocalDateTime time) {
@@ -257,6 +272,15 @@ public class SmartScheduler {
 
     private boolean isFree(LocalDateTime start, LocalDateTime end, EventIndex index) {
         return findConflicts(start, end, index, 0).isEmpty();
+    }
+
+    private boolean matchesPreference(SoftTimePreference preference, LocalDateTime start) {
+        SoftTimePreference normalized = preference == null ? SoftTimePreference.ANY_TIME : preference;
+        return normalized.matches(start.toLocalTime());
+    }
+
+    private long preferencePenalty(SoftTimePreference preference, LocalDateTime start) {
+        return matchesPreference(preference, start) ? 0 : 1;
     }
 
     private boolean overlaps(LocalDateTime aStart, LocalDateTime aEnd, LocalDateTime bStart, LocalDateTime bEnd) {

@@ -1,6 +1,7 @@
 package com.example.demo.scheduler;
 
 import com.example.demo.model.Event;
+import com.example.demo.model.SoftTimePreference;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -54,6 +55,34 @@ class SmartSchedulerTest {
         boolean overlaps = candidate.getStart().isBefore(existing.getEndTime())
                 && candidate.getEnd().isAfter(existing.getStartTime());
         assertTrue(!overlaps);
+    }
+
+    @Test
+    void alternativesPreferPreferredTimeWindowWhenAvailable() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        Event existingMorning = event(1, "Morning Block", date.atTime(9, 0), date.atTime(11, 0), 3);
+        Event incoming = event(2, "Preferred Afternoon", date.atTime(9, 30), date.atTime(10, 30), 3);
+        incoming.setSoftTimePreference(SoftTimePreference.AFTERNOON);
+
+        SchedulingDecision decision = scheduler.decide(incoming, List.of(existingMorning));
+
+        assertEquals(SchedulingDecisionType.SUGGEST_ALTERNATIVES, decision.getType());
+        assertFalse(decision.getAlternatives().isEmpty());
+        assertEquals(LocalDateTime.of(2026, 3, 10, 12, 0), decision.getAlternatives().get(0).getStart());
+    }
+
+    @Test
+    void shiftedEventKeepsPreferredWindowWhenPossible() {
+        LocalDate date = LocalDate.of(2026, 3, 10);
+        Event existing = event(1, "Afternoon Task", date.atTime(13, 0), date.atTime(14, 0), 1);
+        existing.setSoftTimePreference(SoftTimePreference.AFTERNOON);
+        Event incoming = event(2, "Urgent", date.atTime(13, 30), date.atTime(14, 30), 5);
+
+        SchedulingDecision decision = scheduler.decide(incoming, List.of(existing));
+
+        assertEquals(SchedulingDecisionType.SHIFT_CONFLICTING_EVENTS, decision.getType());
+        assertFalse(decision.getShifts().isEmpty());
+        assertEquals(LocalDateTime.of(2026, 3, 10, 14, 30), decision.getShifts().get(0).getNewStart());
     }
 
     @Test

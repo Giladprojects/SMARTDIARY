@@ -2,6 +2,7 @@ package com.example.demo.database;
 
 import com.example.demo.model.Event;
 import com.example.demo.model.RecurringEventSeries;
+import com.example.demo.model.SoftTimePreference;
 import com.example.demo.model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -55,6 +56,7 @@ class DatabaseManagerCrudFlowTest {
                     "Initial description",
                     "Room A"
             );
+            event.setSoftTimePreference(SoftTimePreference.AFTERNOON);
 
             assertTrue(manager.insertEvent(event), "Expected event insert to succeed");
             assertNotEquals(0, event.getId(), "Expected inserted event to receive an id");
@@ -80,6 +82,7 @@ class DatabaseManagerCrudFlowTest {
             event.setPriority(5);
             event.setDescription("Updated description");
             event.setLocation("Room B");
+            event.setSoftTimePreference(SoftTimePreference.EVENING);
             assertTrue(manager.updateEvent(event), "Expected event update to succeed");
 
             Event updated = manager.getAllEvents().stream()
@@ -90,6 +93,7 @@ class DatabaseManagerCrudFlowTest {
             assertEquals(5, updated.getPriority());
             assertEquals("Updated description", updated.getDescription());
             assertEquals("Room B", updated.getLocation());
+            assertEquals(SoftTimePreference.EVENING, updated.getSoftTimePreference());
 
             assertTrue(manager.deleteEvent(event.getId()), "Expected event delete to succeed");
             assertTrue(
@@ -128,6 +132,7 @@ class DatabaseManagerCrudFlowTest {
                     2,
                     "Morning routine",
                     "Field",
+                    SoftTimePreference.MORNING,
                     RecurringEventSeries.DAILY,
                     start.plusDays(4)
             );
@@ -139,6 +144,7 @@ class DatabaseManagerCrudFlowTest {
             List<Event> recurringEvents = manager.getEventsByRecurrenceId(series.getRecurrenceId());
             assertEquals(5, recurringEvents.size(), "Expected all series events to be queryable by recurrence id");
             assertTrue(recurringEvents.stream().allMatch(event -> event.getRecurrenceId() != null));
+            assertTrue(recurringEvents.stream().allMatch(event -> event.getSoftTimePreference() == SoftTimePreference.MORNING));
 
             List<User> firstParticipants = manager.getEventParticipants(recurringEvents.get(0).getId());
             assertTrue(

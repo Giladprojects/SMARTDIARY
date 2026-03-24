@@ -3,6 +3,7 @@ package com.example.demo.database;
 import com.example.demo.auth.PasswordUtil;
 import com.example.demo.model.Event;
 import com.example.demo.model.RecurringEventSeries;
+import com.example.demo.model.SoftTimePreference;
 import com.example.demo.model.User;
 
 import java.nio.file.Files;
@@ -120,8 +121,8 @@ public class DatabaseManager {
     public int createRecurringEventSeries(RecurringEventSeries series, List<User> participants) {
         String sql = """
                 INSERT INTO recurring_event_series (
-                    user_id, title, start_time, end_time, priority, description, location, frequency, until_date, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    user_id, title, start_time, end_time, priority, description, location, soft_time_preference, frequency, until_date, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -132,13 +133,14 @@ public class DatabaseManager {
             stmt.setInt(5, series.getPriority());
             stmt.setString(6, series.getDescription());
             stmt.setString(7, series.getLocation());
-            stmt.setString(8, series.getFrequency());
+            stmt.setString(8, series.getSoftTimePreference().getDbValue());
+            stmt.setString(9, series.getFrequency());
             if (series.getUntilDate() == null) {
-                stmt.setNull(9, Types.TIMESTAMP);
+                stmt.setNull(10, Types.TIMESTAMP);
             } else {
-                stmt.setTimestamp(9, Timestamp.valueOf(series.getUntilDate()));
+                stmt.setTimestamp(10, Timestamp.valueOf(series.getUntilDate()));
             }
-            stmt.setTimestamp(10, new Timestamp(System.currentTimeMillis()));
+            stmt.setTimestamp(11, new Timestamp(System.currentTimeMillis()));
 
             if (stmt.executeUpdate() <= 0) {
                 return -1;
@@ -239,7 +241,7 @@ public class DatabaseManager {
 
     public boolean updateEvent(Event event) {
         String sql = "UPDATE events SET title = ?, start_time = ?, end_time = ?, " +
-                "priority = ?, description = ?, location = ? WHERE event_id = ?";
+                "priority = ?, description = ?, location = ?, soft_time_preference = ? WHERE event_id = ?";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, event.getTitle());
@@ -248,7 +250,8 @@ public class DatabaseManager {
             stmt.setInt(4, event.getPriority());
             stmt.setString(5, event.getDescription());
             stmt.setString(6, event.getLocation());
-            stmt.setInt(7, event.getId());
+            stmt.setString(7, event.getSoftTimePreference().getDbValue());
+            stmt.setInt(8, event.getId());
 
             return stmt.executeUpdate() > 0;
 
@@ -504,8 +507,8 @@ public class DatabaseManager {
 
     private int insertEventRow(Event event) throws SQLException {
         String sql = """
-                INSERT INTO events (user_id, title, start_time, end_time, priority, description, location, recurrence_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO events (user_id, title, start_time, end_time, priority, description, location, soft_time_preference, recurrence_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -516,12 +519,13 @@ public class DatabaseManager {
             stmt.setInt(5, event.getPriority());
             stmt.setString(6, event.getDescription());
             stmt.setString(7, event.getLocation());
+            stmt.setString(8, event.getSoftTimePreference().getDbValue());
             if (event.getRecurrenceId() == null) {
-                stmt.setNull(8, Types.INTEGER);
+                stmt.setNull(9, Types.INTEGER);
             } else {
-                stmt.setInt(8, event.getRecurrenceId());
+                stmt.setInt(9, event.getRecurrenceId());
             }
-            stmt.setTimestamp(9, new Timestamp(System.currentTimeMillis()));
+            stmt.setTimestamp(10, new Timestamp(System.currentTimeMillis()));
 
             int rows = stmt.executeUpdate();
             if (rows <= 0) {
@@ -559,6 +563,7 @@ public class DatabaseManager {
                         rs.getInt("priority"),
                         defaultString(rs.getString("description")),
                         defaultString(rs.getString("location")),
+                        SoftTimePreference.fromDbValue(rs.getString("soft_time_preference")),
                         rs.getString("frequency"),
                         untilTimestamp == null ? null : untilTimestamp.toLocalDateTime()
                 ));
@@ -696,7 +701,8 @@ public class DatabaseManager {
                 rs.getTimestamp("end_time").toLocalDateTime(),
                 rs.getInt("priority"),
                 defaultString(rs.getString("description")),
-                defaultString(rs.getString("location"))
+                defaultString(rs.getString("location")),
+                SoftTimePreference.fromDbValue(rs.getString("soft_time_preference"))
         );
     }
 

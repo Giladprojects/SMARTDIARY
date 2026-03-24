@@ -19,6 +19,7 @@ public class RecurringEventSeries {
     private int priority;
     private String description;
     private String location;
+    private SoftTimePreference softTimePreference;
     private String frequency;
     private LocalDateTime untilDate;
 
@@ -33,7 +34,34 @@ public class RecurringEventSeries {
             String frequency,
             LocalDateTime untilDate
     ) {
-        this(recurrenceId, 1, title, startTime, endTime, priority, description, location, frequency, untilDate);
+        this(
+                recurrenceId,
+                1,
+                title,
+                startTime,
+                endTime,
+                priority,
+                description,
+                location,
+                SoftTimePreference.ANY_TIME,
+                frequency,
+                untilDate
+        );
+    }
+
+    public RecurringEventSeries(
+            int recurrenceId,
+            String title,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            int priority,
+            String description,
+            String location,
+            SoftTimePreference softTimePreference,
+            String frequency,
+            LocalDateTime untilDate
+    ) {
+        this(recurrenceId, 1, title, startTime, endTime, priority, description, location, softTimePreference, frequency, untilDate);
     }
 
     public RecurringEventSeries(
@@ -48,6 +76,34 @@ public class RecurringEventSeries {
             String frequency,
             LocalDateTime untilDate
     ) {
+        this(
+                recurrenceId,
+                userId,
+                title,
+                startTime,
+                endTime,
+                priority,
+                description,
+                location,
+                SoftTimePreference.ANY_TIME,
+                frequency,
+                untilDate
+        );
+    }
+
+    public RecurringEventSeries(
+            int recurrenceId,
+            int userId,
+            String title,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            int priority,
+            String description,
+            String location,
+            SoftTimePreference softTimePreference,
+            String frequency,
+            LocalDateTime untilDate
+    ) {
         this.recurrenceId = recurrenceId;
         this.userId = userId;
         this.title = title;
@@ -56,6 +112,7 @@ public class RecurringEventSeries {
         this.priority = priority;
         this.description = description;
         this.location = location;
+        this.softTimePreference = softTimePreference == null ? SoftTimePreference.ANY_TIME : softTimePreference;
         this.frequency = frequency;
         this.untilDate = untilDate;
     }
@@ -96,6 +153,10 @@ public class RecurringEventSeries {
         return location;
     }
 
+    public SoftTimePreference getSoftTimePreference() {
+        return softTimePreference;
+    }
+
     public String getFrequency() {
         return frequency;
     }
@@ -127,7 +188,8 @@ public class RecurringEventSeries {
                     occurrenceStart.plus(duration),
                     priority,
                     description,
-                    location
+                    location,
+                    softTimePreference
             ));
             occurrenceIndex++;
             occurrenceStart = occurrenceAt(occurrenceIndex);
