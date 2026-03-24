@@ -7,6 +7,3 @@ target/
 .vscode/
 .m2repo/
 settings-local.xml
-.mvn-home/
-example_page-*.png
-project_example_extracted.txt
